@@ -131,6 +131,16 @@ def commit_and_push(log_repo_path, file_path, commit_msg):
             print(f"Warning: Git lock files found, skipping operations: {lock_files}")
             return
             
+        # Check if there are any changes to commit
+        status_result = subprocess.run(
+            ["git", "-C", str(log_repo_path), "status", "--porcelain"], 
+            capture_output=True, text=True, check=True
+        )
+        
+        if not status_result.stdout.strip():
+            print("No changes to commit, skipping git operations")
+            return
+            
         # Add the file
         subprocess.run(["git", "-C", str(log_repo_path), "add", str(file_path.relative_to(log_repo_path))], 
                       check=True, capture_output=True, text=True)
