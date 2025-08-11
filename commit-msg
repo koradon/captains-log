@@ -1,0 +1,9 @@
+#!/bin/bash
+
+REPO_NAME=$(basename "$(git rev-parse --show-toplevel)")
+REPO_PATH=$(git rev-parse --show-toplevel)
+COMMIT_MSG=$(head -n1 "$1")
+
+COMMIT_SHA=$(git rev-parse --verify HEAD 2>/dev/null || echo "no-sha")
+
+python3 ~/.captains-log/update_log.py "$REPO_NAME" "$REPO_PATH" "$COMMIT_SHA" "$COMMIT_MSG"
