@@ -1,9 +1,30 @@
 #!/bin/bash
 
+# Exit on any error
+set -e
+
+# Get repository information
 REPO_NAME=$(basename "$(git rev-parse --show-toplevel)")
 REPO_PATH=$(git rev-parse --show-toplevel)
 COMMIT_MSG=$(head -n1 "$1")
 
+# Get commit SHA (handle both pre-commit and post-commit scenarios)
 COMMIT_SHA=$(git rev-parse --verify HEAD 2>/dev/null || echo "no-sha")
 
-python3 ~/.captains-log/update_log.py "$REPO_NAME" "$REPO_PATH" "$COMMIT_SHA" "$COMMIT_MSG"
+# Path to the update script
+SCRIPT_PATH="$HOME/.captains-log/update_log.py"
+
+# Check if script exists
+if [ ! -f "$SCRIPT_PATH" ]; then
+    echo "Warning: Captain's Log script not found at $SCRIPT_PATH"
+    echo "Please run the install script or check your installation."
+    exit 0  # Don't fail the commit
+fi
+
+# Run the update script
+export GIT_HOOK=1
+if ! python3 "$SCRIPT_PATH" "$REPO_NAME" "$REPO_PATH" "$COMMIT_SHA" "$COMMIT_MSG"; then
+    echo "Warning: Captain's Log update failed, but commit will continue"
+    echo "Check the script output above for errors"
+    exit 0  # Don't fail the commit
+fi
