@@ -51,3 +51,31 @@ chmod +x ~/.captains-log/update_log.py
 After setup, every git commit you make will update a daily markdown log file inside the configured log repository/directories.
 
 Logs are grouped by repository name under each project, with a date-based file (e.g., 2025-08-11.md).
+
+## Testing
+To test if your installation is working correctly, run:
+
+```bash
+python3 test_hook.py
+```
+
+This will simulate a commit and show you if the log update is working properly.
+
+## Troubleshooting
+
+### Hook not running
+- Make sure you've run `install.sh` and it completed successfully
+- Check that `git config --global core.hooksPath` points to `~/.git-hooks`
+- Verify the `commit-msg` file exists in `~/.git-hooks/` and is executable
+
+### Script not found errors
+- Ensure `update_log.py` was copied to `~/.captains-log/`
+- Check that the script has execute permissions: `chmod +x ~/.captains-log/update_log.py`
+
+### Permission errors
+- Make sure both the hook and script are executable
+- Check that your user has write access to the log directories
+
+### Python dependencies
+- Install PyYAML: `pip install pyyaml`
+- Ensure Python 3 is available as `python3`
