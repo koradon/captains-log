@@ -24,8 +24,8 @@ pip install pyyaml
 global_log_repo: /path/to/global/log-repo
 
 projects:
-  lulu:
-    root: /path/to/work/repos/lulu
+  work-repos:
+    root: /path/to/work/repos/work-repos
 
   private-tools:
     root: /path/to/private/repos/tools
