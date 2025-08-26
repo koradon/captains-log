@@ -119,10 +119,7 @@ def save_log(file_path, repos):
 
 def commit_and_push(log_repo_path, file_path, commit_msg):
     try:
-        # Check if we're already in a git operation
-        if os.environ.get('GIT_INDEX_FILE') or os.environ.get('GIT_EDITOR'):
-            print("Skipping git operations: Already in git context")
-            return
+        # Note: Removed git context guard to allow automatic commit/push from hooks
             
         # Check if there are any git lock files
         git_dir = log_repo_path / ".git"
@@ -204,17 +201,14 @@ def main():
         print("Skipping log update: No valid commit SHA")
         return
 
-    # Skip if we're already in a git hook context to prevent recursion
-    if os.environ.get('GIT_HOOK'):
-        print("Skipping log update: Already in git hook context")
-        return
-        
     # Skip if we're in the log repository itself to prevent infinite loops
     config = load_config()
     global_repo = config.get("global_log_repo")
     if global_repo:
         global_repo_abs = Path(global_repo).resolve()
         repo_path_abs = Path(repo_path).resolve()
+        # Only skip if we're committing from within the actual log repository
+        # This allows commits from captains-log repo to be logged
         if repo_path_abs == global_repo_abs:
             print("Skipping log update: Running from within log repository")
             return
