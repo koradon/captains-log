@@ -65,17 +65,20 @@ def parse_commit_entry(entry):
     return None, None
 
 def update_commit_entries(entries, new_sha, new_msg):
+    # Use short SHA (first 7 characters)
+    short_sha = new_sha[:7] if len(new_sha) >= 7 else new_sha
+    
     to_remove = []
     for i, entry in enumerate(entries):
         sha, msg = parse_commit_entry(entry)
-        if msg == new_msg and sha != new_sha:
+        if msg == new_msg and sha != short_sha:
             to_remove.append(i)
-        if sha == new_sha and msg == new_msg:
+        if sha == short_sha and msg == new_msg:
             return entries
 
     for i in reversed(to_remove):
         entries.pop(i)
-    entries.append(f"- ({new_sha}) {new_msg}")
+    entries.append(f"- ({short_sha}) {new_msg}")
     return entries
 
 def save_log(file_path, repos):
