@@ -175,7 +175,7 @@ def get_log_repo_and_path(project, config):
         log_repo = global_repo
 
     today = date.today()
-    log_file_name = f"{today.year}.{today.month}.{today.day}.md"
+    log_file_name = f"{today.year}.{today.month:02d}.{today.day:02d}.md"
 
     if log_repo is None:
         log_repo_path = BASE_DIR / project
