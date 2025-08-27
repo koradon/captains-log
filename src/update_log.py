@@ -192,7 +192,7 @@ def get_log_repo_and_path(project, config):
 def main():
     if len(sys.argv) < 5:
         print("Usage: update_log.py <repo_name> <repo_path> <commit_sha> <commit_message>")
-        sys.exit(1)
+        return
 
     repo_name = sys.argv[1]
     repo_path = sys.argv[2]

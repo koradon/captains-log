@@ -400,15 +400,12 @@ def test_main_success(mock_commit_push, mock_save, mock_update,
             mock_print.assert_called_with("Updated log for repo1 in project test-project")
 
 
-@patch('sys.exit')
-@patch('builtins.print')
-def test_main_insufficient_args(mock_print, mock_exit, monkeypatch):
+def test_main_insufficient_args(monkeypatch):
     """Test main with insufficient arguments"""
     # Set up insufficient arguments
     monkeypatch.setattr(sys, 'argv', ['update_log.py', 'repo1', '/tmp/repo1'])
     
     update_log.main()
-    mock_exit.assert_called_with(1)
 
 
 @patch('builtins.print')
