@@ -18,7 +18,7 @@ test:
 
 # Run tests with coverage
 test-cov:
-    uv run pytest --cov=update_log --cov-report=html
+    uv run pytest --cov=src --cov-report=html
 
 # Run tests with verbose output
 test-verbose:

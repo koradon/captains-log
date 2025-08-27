@@ -18,16 +18,17 @@ test = [
 ]
 
 [tool.pytest.ini_options]
-testpaths = ["."]
+testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
+pythonpath = ["src"]
 addopts = [
     "-v",
     "--tb=short",
     "--strict-markers",
     "--disable-warnings",
-    "--cov=update_log",
+    "--cov=src",
     "--cov-report=term-missing",
     "--cov-report=html",
 ]
@@ -38,7 +39,7 @@ markers = [
 ]
 
 [tool.coverage.run]
-source = ["update_log.py"]
+source = ["src"]
 
 [tool.coverage.report]
 exclude_lines = [
