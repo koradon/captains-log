@@ -1,4 +1,4 @@
-# Captain’s Log
+# Captain's Log
 
 Automatically aggregate your git commit messages daily into markdown logs, grouped by repository and project.
 
@@ -68,6 +68,30 @@ git config --global core.hooksPath ~/.git-hooks
 chmod +x ~/.captains-log/update_log.py
 ```
 
+## Development Setup
+
+This project uses UV for dependency management. To set up the development environment:
+
+1. Install UV if you haven't already:
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
+
+2. Install development dependencies:
+```bash
+uv sync --group test
+```
+
+3. Run tests:
+```bash
+uv run pytest
+```
+
+4. Run tests with coverage:
+```bash
+uv run pytest --cov=update_log --cov-report=html
+```
+
 ## Usage
 After setup, every git commit you make will update a daily markdown log file inside the configured log repository/directories.
 
@@ -98,5 +122,6 @@ This will simulate a commit and show you if the log update is working properly.
 - Check that your user has write access to the log directories
 
 ### Python dependencies
-- Install PyYAML: `pip install pyyaml`
+- Install dependencies with UV: `uv sync`
+- Or install PyYAML manually: `pip install pyyaml`
 - Ensure Python 3 is available as `python3`
