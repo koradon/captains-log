@@ -400,31 +400,31 @@ def test_main_success(mock_commit_push, mock_save, mock_update,
             mock_print.assert_called_with("Updated log for repo1 in project test-project")
 
 
-def test_main_insufficient_args(monkeypatch):
+@patch('sys.exit')
+@patch('builtins.print')
+def test_main_insufficient_args(mock_print, mock_exit, monkeypatch):
     """Test main with insufficient arguments"""
     # Set up insufficient arguments
     monkeypatch.setattr(sys, 'argv', ['update_log.py', 'repo1', '/tmp/repo1'])
     
-    with patch('builtins.print') as mock_print:
-        with patch('sys.exit') as mock_exit:
-            update_log.main()
-            mock_exit.assert_called_with(1)
+    update_log.main()
+    mock_exit.assert_called_with(1)
 
 
-def test_main_no_sha():
+@patch('builtins.print')
+@patch('sys.argv', ['update_log.py', 'repo1', '/tmp/repo1', 'no-sha', 'Test commit'])
+def test_main_no_sha(mock_print):
     """Test main with no-sha commit"""
-    with patch('sys.argv', ['update_log.py', 'repo1', '/tmp/repo1', 'no-sha', 'Test commit']):
-        with patch('builtins.print') as mock_print:
-            update_log.main()
-            mock_print.assert_called_with("Skipping log update: No valid commit SHA")
+    update_log.main()
+    mock_print.assert_called_with("Skipping log update: No valid commit SHA")
 
 
-def test_main_merge_commit():
+@patch('builtins.print')
+@patch('sys.argv', ['update_log.py', 'repo1', '/tmp/repo1', 'no-sha-merge', 'Merge branch'])
+def test_main_merge_commit(mock_print):
     """Test main with merge commit"""
-    with patch('sys.argv', ['update_log.py', 'repo1', '/tmp/repo1', 'no-sha-merge', 'Merge branch']):
-        with patch('builtins.print') as mock_print:
-            update_log.main()
-            mock_print.assert_called_with("Skipping log update: No valid commit SHA")
+    update_log.main()
+    mock_print.assert_called_with("Skipping log update: No valid commit SHA")
 
 
 # Integration tests
