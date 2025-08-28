@@ -1,0 +1,26 @@
+#!/usr/bin/env sh
+
+# Captain's Log commit-msg dispatcher
+# Behavior:
+# - If commit-msg-precommit exists: run pre-commit first
+# - Always run Captain's Log hook afterwards
+
+set -eu
+
+HOOKS_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+PRECOMMIT_WRAPPER="$HOOKS_DIR/commit-msg-precommit"
+CAPTAINS_LOG_HOOK="$HOME/.captains-log/commit-msg"
+
+# 1) Run pre-commit wrapper if present
+if [ -x "$PRECOMMIT_WRAPPER" ]; then
+  "$PRECOMMIT_WRAPPER" "$@"
+fi
+
+# 2) Run the original Captain's Log hook
+if [ -x "$CAPTAINS_LOG_HOOK" ]; then
+  exec "$CAPTAINS_LOG_HOOK" "$@"
+fi
+
+exit 0
+
+

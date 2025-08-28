@@ -1,0 +1,10 @@
+#!/usr/bin/env sh
+
+# Run repo's pre-push hooks via pre-commit when configured.
+if command -v pre-commit >/dev/null 2>&1 && [ -f ".pre-commit-config.yaml" ]; then
+  exec pre-commit run --hook-stage pre-push --color always
+fi
+
+exit 0
+
+

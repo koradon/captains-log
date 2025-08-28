@@ -14,12 +14,14 @@ mkdir -p "$GIT_HOOKS_DIR"
 # Copy script and hook
 echo "Copying update_log.py and commit-msg..."
 cp update_log.py "$CAPT_LOG_DIR/"
+cp commit-msg "$CAPT_LOG_DIR/"
 
 # Copy commit-msg hook to git hooks directory (this is where git will look for it)
 cp commit-msg "$GIT_HOOKS_DIR/commit-msg"
 
 # Make executables
 chmod +x "$CAPT_LOG_DIR/update_log.py"
+chmod +x "$CAPT_LOG_DIR/commit-msg"
 chmod +x "$GIT_HOOKS_DIR/commit-msg"
 
 # Create basic config.yml if not exist
