@@ -1,0 +1,10 @@
+#!/usr/bin/env sh
+
+# 1) Run commit-msg stage through pre-commit when configured in this repo
+if command -v pre-commit >/dev/null 2>&1 && [ -f ".pre-commit-config.yaml" ]; then
+  pre-commit run --hook-stage commit-msg --commit-msg-filename "$1" --color always || exit $?
+fi
+
+exit 0
+
+

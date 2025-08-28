@@ -12,6 +12,7 @@ Use the automated installation script:
 ```bash
 git clone https://your.git.server/CaptainsLog.git ~/.captains-log
 cd ~/.captains-log
+chmod +x install.sh
 ./install.sh
 ```
 
@@ -22,6 +23,23 @@ The `install.sh` script will:
 - Create a default `config.yml` file
 - Configure global git hooks path
 - Check for Python 3 and install PyYAML if needed
+
+### Pre-commit Integration (Optional)
+If you use [pre-commit](https://pre-commit.com/) in your repositories and want to keep both your global Captain's Log hooks and per-repo pre-commit hooks working together:
+
+```bash
+# After running install.sh
+chmod +x install-with-precommit.sh
+./install-with-precommit.sh
+```
+
+This will:
+- Install global hook wrappers that run pre-commit first (when `.pre-commit-config.yaml` exists)
+- Then run Captain's Log afterwards
+- Preserve your existing `core.hooksPath` configuration
+- Work seamlessly with repos that don't use pre-commit
+
+**Note:** With pre-commit integration, you don't need to run `pre-commit install` in individual repositories. The global hooks will automatically invoke pre-commit when a repo has `.pre-commit-config.yaml`.
 
 ### Manual Installation
 If you prefer to install manually:
@@ -121,13 +139,23 @@ After setup, every git commit you make will update a daily markdown log file ins
 Logs are grouped by repository name under each project, with a date-based file (e.g., 2025-08-11.md).
 
 ## Testing
-To test if your installation is working correctly, run:
+To test if your installation is working correctly:
 
+### Basic Captain's Log Test
 ```bash
 python3 test_hook.py
 ```
 
 This will simulate a commit and show you if the log update is working properly.
+
+### Pre-commit Integration Test
+If you installed pre-commit integration, test the dispatcher:
+
+```bash
+python3 test_hook_precommit.py
+```
+
+This will test that the hook dispatcher correctly runs pre-commit (if configured) followed by Captain's Log.
 
 ## Troubleshooting
 
@@ -136,6 +164,12 @@ This will simulate a commit and show you if the log update is working properly.
 - Check that `git config --global core.hooksPath` points to `~/.git-hooks`
 - Verify the `commit-msg` file exists in `~/.git-hooks/` and is executable
 
+### Pre-commit integration issues
+- Ensure you ran `install.sh` before `install-with-precommit.sh`
+- Check that both `commit-msg` and `commit-msg-precommit` exist in `~/.git-hooks/`
+- If pre-commit errors occur, verify you have pre-commit installed: `pip install pre-commit`
+- The integration only runs pre-commit in repos with `.pre-commit-config.yaml`
+
 ### Script not found errors
 - Ensure `update_log.py` was copied to `~/.captains-log/`
 - Check that the script has execute permissions: `chmod +x ~/.captains-log/update_log.py`
@@ -143,3 +177,8 @@ This will simulate a commit and show you if the log update is working properly.
 ### Permission errors
 - Make sure both the hook and script are executable
 - Check that your user has write access to the log directories
+
+### Conflicting with existing pre-commit setup
+If you previously used `pre-commit install` in repositories:
+- You can safely leave existing `.git/hooks/` as they won't be used (global `core.hooksPath` takes precedence)
+- Or clean them up with `pre-commit uninstall` in each repo if you prefer
