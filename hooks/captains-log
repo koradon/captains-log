@@ -22,5 +22,3 @@ if [ -x "$CAPTAINS_LOG_HOOK" ]; then
 fi
 
 exit 0
-
-

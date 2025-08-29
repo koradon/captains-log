@@ -47,5 +47,3 @@ fi
 echo "Done. pre-commit wrappers are installed globally."
 echo "- They run pre-commit in repos with .pre-commit-config.yaml"
 echo "- The commit-msg wrapper will also run Captain's Log if installed"
-
-

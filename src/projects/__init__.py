@@ -3,4 +3,4 @@
 from .project_finder import ProjectFinder
 from .project_models import ProjectInfo
 
-__all__ = ['ProjectFinder', 'ProjectInfo']
+__all__ = ["ProjectFinder", "ProjectInfo"]
