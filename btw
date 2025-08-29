@@ -2,9 +2,10 @@
 import sys
 from pathlib import Path
 
-# Add the captains-log directory to Python path
+# Add the src directory to Python path
 captains_log_dir = Path(__file__).parent
-sys.path.insert(0, str(captains_log_dir))
+src_dir = captains_log_dir / "src"
+sys.path.insert(0, str(src_dir))
 
 # Import and run the btw module
 if __name__ == "__main__":
