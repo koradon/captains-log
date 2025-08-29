@@ -79,7 +79,6 @@ The project includes pre-commit configuration (`.pre-commit-config.yaml`) for:
 - Large file checks
 - Merge conflict detection
 - Ruff linting and formatting
-- MyPy type checking
 
 ## 📊 Code Quality Standards
 
