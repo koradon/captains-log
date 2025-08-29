@@ -1,195 +1,98 @@
 #!/usr/bin/env python3
-import sys
-import os
-from pathlib import Path
-from datetime import date
-import yaml
-import subprocess
+"""
+Refactored update_log.py using domain-driven design modules.
 
+This script processes git commit information and updates daily log files.
+"""
+
+import sys
+from datetime import date
+from pathlib import Path
+
+# Domain imports
+from config import load_config
+from projects import ProjectFinder
+from logs import LogManager
+from git import GitOperations, CommitParser
+from entries import EntryProcessor
+
+
+# Backward compatibility exports for existing tests
+def load_config_legacy():
+    """Legacy function for backward compatibility."""
+    return load_config()
+
+
+def find_project(repo_path, config):
+    """Legacy function for backward compatibility."""
+    from config.config_models import Config
+    if not isinstance(config, Config):
+        config = Config.from_dict(config)
+    
+    finder = ProjectFinder(config)
+    project_info = finder.find_project(repo_path)
+    return project_info.name
+
+
+def load_log(file_path):
+    """Legacy function for backward compatibility."""
+    from logs import LogParser
+    parser = LogParser()
+    log_data = parser.parse_log_file(file_path)
+    return log_data.repos
+
+
+def parse_commit_entry(entry):
+    """Legacy function for backward compatibility."""
+    return CommitParser.parse_commit_entry(entry)
+
+
+def update_commit_entries(entries, new_sha, new_msg):
+    """Legacy function for backward compatibility."""
+    processor = EntryProcessor()
+    return processor.update_commit_entries(entries, new_sha, new_msg)
+
+
+def save_log(file_path, repos):
+    """Legacy function for backward compatibility."""
+    from logs import LogWriter, LogData
+    writer = LogWriter()
+    log_data = LogData(repos=repos)
+    writer.write_log_file(file_path, log_data)
+
+
+def commit_and_push(log_repo_path, file_path, commit_msg):
+    """Legacy function for backward compatibility."""
+    git_ops = GitOperations(log_repo_path)
+    git_ops.commit_and_push(file_path, commit_msg)
+
+
+def get_log_repo_and_path(project, config):
+    """Legacy function for backward compatibility."""
+    from config.config_models import Config
+    from projects.project_models import ProjectInfo, ProjectConfig
+    
+    if not isinstance(config, Config):
+        config = Config.from_dict(config)
+    
+    # Create a minimal ProjectInfo for the legacy interface
+    project_config = config.get_project_config(project)
+    project_info = ProjectInfo(name=project, config=project_config, base_dir=Path.cwd())
+    
+    manager = LogManager(config)
+    log_info = manager.get_log_file_info(project_info)
+    
+    return log_info.log_repo_path, log_info.file_path
+
+
+# Legacy constants for backward compatibility
 BASE_DIR = Path.home() / ".captains-log" / "projects"
 CONFIG_FILE = Path.home() / ".captains-log" / "config.yml"
-
 HEADER = "# What I did\n\n"
 FOOTER = "# Whats next\n\n\n# What Broke or Got Weird\n"
 
-def load_config():
-    if CONFIG_FILE.exists():
-        with open(CONFIG_FILE, "r", encoding="utf-8") as f:
-            return yaml.safe_load(f) or {}
-    return {}
-
-def find_project(repo_path, config):
-    projects = config.get("projects", {})
-    repo_path_abs = Path(repo_path).resolve()
-
-    # Check configured projects first
-    for project_name, proj_cfg in projects.items():
-        root_dir = proj_cfg.get("root") if isinstance(proj_cfg, dict) else proj_cfg
-        if root_dir is None:
-            continue
-        root_abs = Path(root_dir).resolve()
-        if root_abs in repo_path_abs.parents or root_abs == repo_path_abs:
-            return project_name
-    
-    # fallback: use repository name as project
-    return repo_path_abs.name
-
-def load_log(file_path):
-    if not file_path.exists():
-        return {}
-    
-    try:
-        content = file_path.read_text(encoding="utf-8").splitlines()
-    except (UnicodeDecodeError, IOError) as e:
-        print(f"Warning: Could not read log file {file_path}: {e}")
-        return {}
-    
-    repos = {}
-    current_repo = None
-    for line in content:
-        line = line.strip()
-        if line.startswith("## "):
-            current_repo = line[3:].strip()
-            if current_repo:  # Only add non-empty repo names
-                repos[current_repo] = []
-        elif current_repo and line.startswith("- ") and line.strip():
-            repos[current_repo].append(line.strip())
-    return repos
-
-def parse_commit_entry(entry):
-    if entry.startswith("- (") and ") " in entry:
-        sha_end = entry.find(")")
-        sha = entry[3:sha_end]
-        message = entry[sha_end+2:]
-        return sha, message
-    return None, None
-
-def update_commit_entries(entries, new_sha, new_msg):
-    # Use short SHA (first 7 characters)
-    short_sha = new_sha[:7] if len(new_sha) >= 7 else new_sha
-    
-    to_remove = []
-    for i, entry in enumerate(entries):
-        sha, msg = parse_commit_entry(entry)
-        if msg == new_msg and sha != short_sha:
-            to_remove.append(i)
-        if sha == short_sha and msg == new_msg:
-            return entries
-
-    for i in reversed(to_remove):
-        entries.pop(i)
-    entries.append(f"- ({short_sha}) {new_msg}")
-    return entries
-
-def save_log(file_path, repos):
-    try:
-        file_path.parent.mkdir(parents=True, exist_ok=True)
-
-        if not file_path.exists():
-            with file_path.open("w", encoding="utf-8") as f:
-                f.write(HEADER)
-                f.write("\n\n")
-                f.write(FOOTER)
-
-        try:
-            content = file_path.read_text(encoding="utf-8")
-        except (UnicodeDecodeError, IOError):
-            # If we can't read the file, start fresh
-            content = HEADER + "\n\n" + FOOTER
-
-        if "# What I did" not in content:
-            content = HEADER + "\n\n" + FOOTER
-        parts = content.split(FOOTER, 1)
-        main_part = parts[0].strip()
-        footer_part = FOOTER
-
-        commit_lines = []
-        for repo in sorted(repos.keys(), key=str.lower):
-            commit_lines.append(f"## {repo}")
-            commit_lines.extend(repos[repo])
-            commit_lines.append("")
-
-        new_content = HEADER + "\n".join(commit_lines).strip() + "\n\n" + footer_part
-        
-        # Write with atomic operation to avoid corruption
-        temp_file = file_path.with_suffix(file_path.suffix + '.tmp')
-        temp_file.write_text(new_content, encoding="utf-8")
-        temp_file.replace(file_path)
-        
-    except Exception as e:
-        print(f"Error saving log file {file_path}: {e}")
-        raise
-
-def commit_and_push(log_repo_path, file_path, commit_msg):
-    try:
-        # Note: Removed git context guard to allow automatic commit/push from hooks
-            
-        # Check if there are any git lock files
-        git_dir = log_repo_path / ".git"
-        lock_files = list(git_dir.glob("*.lock"))
-        if lock_files:
-            print(f"Warning: Git lock files found, skipping operations: {lock_files}")
-            return
-            
-        # Check if there are any changes to commit
-        status_result = subprocess.run(
-            ["git", "-C", str(log_repo_path), "status", "--porcelain"], 
-            capture_output=True, text=True, check=True
-        )
-        
-        if not status_result.stdout.strip():
-            print("No changes to commit, skipping git operations")
-            return
-            
-        # Add the file
-        subprocess.run(["git", "-C", str(log_repo_path), "add", str(file_path.relative_to(log_repo_path))], 
-                      check=True, capture_output=True, text=True)
-        
-        # Commit
-        subprocess.run(["git", "-C", str(log_repo_path), "commit", "-m", commit_msg], 
-                      check=True, capture_output=True, text=True)
-        
-        # Push
-        subprocess.run(["git", "-C", str(log_repo_path), "push"], 
-                      check=True, capture_output=True, text=True)
-                      
-        print(f"Successfully committed and pushed log updates")
-        
-    except subprocess.CalledProcessError as e:
-        print(f"Warning: Git commit/push failed: {e}")
-        # Don't retry or loop - just log the error and continue
-    except Exception as e:
-        print(f"Warning: Unexpected error during git operations: {e}")
-
-def get_log_repo_and_path(project, config):
-    global_repo = config.get("global_log_repo")
-    project_cfg = config.get("projects", {}).get(project, {})
-    if isinstance(project_cfg, dict):
-        log_repo = project_cfg.get("log_repo")
-        root_dir = project_cfg.get("root")
-    else:
-        log_repo = None
-        root_dir = project_cfg
-
-    if log_repo is None:
-        log_repo = global_repo
-
-    today = date.today()
-    log_file_name = f"{today.year}.{today.month:02d}.{today.day:02d}.md"
-
-    if log_repo is None:
-        log_repo_path = BASE_DIR / project
-        log_file = log_repo_path / log_file_name
-        return None, log_file
-
-    log_repo_path = Path(log_repo).resolve()
-    if log_repo == global_repo:
-        log_file = log_repo_path / project / log_file_name
-    else:
-        log_file = log_repo_path / log_file_name
-    return log_repo_path, log_file
-
 def main():
+    """Main entry point for the update log script."""
     if len(sys.argv) < 5:
         print("Usage: update_log.py <repo_name> <repo_path> <commit_sha> <commit_message>")
         return
@@ -199,40 +102,55 @@ def main():
     commit_sha = sys.argv[3]
     commit_msg = sys.argv[4]
 
-    # Skip if this is a merge commit or if commit_sha is "no-sha"
-    if commit_sha == "no-sha" or not commit_sha or commit_sha.startswith("no-sha"):
-        print("Skipping log update: No valid commit SHA")
-        return
-
-    # Skip if we're in the log repository itself to prevent infinite loops
-    config = load_config()
-    global_repo = config.get("global_log_repo")
-    if global_repo:
-        global_repo_abs = Path(global_repo).resolve()
-        repo_path_abs = Path(repo_path).resolve()
-        # Only skip if we're committing from within the actual log repository
-        # This allows commits from captains-log repo to be logged
-        if repo_path_abs == global_repo_abs:
-            print("Skipping log update: Running from within log repository")
+    try:
+        # Load configuration
+        config = load_config()
+        
+        # Check if we should skip this commit
+        if CommitParser.should_skip_commit(commit_sha, repo_path, 
+                                          str(config.global_log_repo) if config.global_log_repo else None):
+            if not CommitParser.is_valid_commit_sha(commit_sha):
+                print("Skipping log update: No valid commit SHA")
+            else:
+                print("Skipping log update: Running from within log repository")
             return
 
-    try:
-        config = load_config()
-        project = find_project(repo_path, config)
+        # Find project information
+        project_finder = ProjectFinder(config)
+        project = project_finder.find_project(repo_path)
 
-        log_repo_path, log_file = get_log_repo_and_path(project, config)
+        # Get log file information
+        log_manager = LogManager(config)
+        log_info = log_manager.get_log_file_info(project)
 
-        repos = load_log(log_file)
-        if repo_name not in repos:
-            repos[repo_name] = []
+        # Load existing log data
+        log_data = log_manager.load_log(log_info)
 
-        repos[repo_name] = update_commit_entries(repos[repo_name], commit_sha, commit_msg)
-        save_log(log_file, repos)
-
-        if log_repo_path is not None:
-            commit_and_push(log_repo_path, log_file, f"Update {project} logs for {date.today().isoformat()}")
+        # Process the new commit entry
+        entry_processor = EntryProcessor()
         
-        print(f"Updated log for {repo_name} in project {project}")
+        # Get or create repository entries
+        repo_entries = log_data.get_repo_entries(repo_name)
+        
+        # Update with new commit
+        updated_entries = entry_processor.update_commit_entries(
+            repo_entries, commit_sha, commit_msg
+        )
+        
+        # Update log data
+        log_data.set_repo_entries(repo_name, updated_entries)
+        
+        # Save the updated log
+        log_manager.save_log(log_info, log_data)
+
+        # Commit and push if we have a git repository
+        if log_info.has_git_repo:
+            git_ops = GitOperations(log_info.log_repo_path)
+            commit_message = f"Update {project.name} logs for {date.today().isoformat()}"
+            git_ops.commit_and_push(log_info.file_path, commit_message)
+        
+        print(f"Updated log for {repo_name} in project {project.name}")
+        
     except Exception as e:
         print(f"Error updating log: {e}")
         # Don't exit with error code to avoid breaking git operations
