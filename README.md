@@ -19,6 +19,7 @@ chmod +x install.sh
 The `install.sh` script will:
 - Create necessary directories (`~/.captains-log` and `~/.git-hooks`)
 - Copy `update_log.py` and `commit-msg` hook to the right locations
+- Install the `btw` command globally (accessible from anywhere)
 - Set proper executable permissions
 - Create a default `config.yml` file
 - Configure global git hooks path
@@ -134,9 +135,64 @@ just test-pattern "load_config"
 ```
 
 ## Usage
+
+### Automatic Git Commit Logging
 After setup, every git commit you make will update a daily markdown log file inside the configured log repository/directories.
 
 Logs are grouped by repository name under each project, with a date-based file (e.g., 2025-08-11.md).
+
+### Manual Log Entries with `btw` Command
+The `btw` (By The Way) command allows you to add manual entries to your daily logs from anywhere on your system:
+
+```bash
+btw "Reviewed the new API documentation"
+btw "Had a productive meeting about the architecture"
+btw "Fixed a bug that wasn't committed yet"
+```
+
+#### How `btw` Works:
+- **Smart Project Detection**: Uses the same project detection logic as git commits
+  - If you're in a configured project directory → logs to that project
+  - If not configured → uses the current directory name as project
+- **Consistent Location**: Entries appear in an "other" section at the end of your daily log
+- **Same Infrastructure**: Uses your existing Captain's Log configuration and repositories
+
+#### Examples:
+
+```bash
+# From within your configured project directory
+cd ~/work/my-project
+btw "Completed code review for new feature"
+# → Adds to my-project's daily log under "## other"
+
+# From any directory
+cd ~/Downloads
+btw "Downloaded and reviewed the client requirements"
+# → Adds to Downloads project log under "## other"
+```
+
+#### Installation:
+The `btw` command is automatically installed with the main Captain's Log installation:
+- Accessible globally from any directory
+- Installed to `~/.local/bin/btw` (ensure `~/.local/bin` is in your PATH)
+- No additional setup required after running `install.sh`
+
+#### Log Format:
+Your daily logs will show git commits by repository, followed by manual entries:
+
+```markdown
+# What I did
+
+## repository-name
+- (abc1234) Actual git commit message
+
+## other-repo
+- (def5678) Another git commit
+
+## other
+- Manual entry added with btw command
+- Another manual note
+```
 
 ## Testing
 To test if your installation is working correctly:
@@ -182,3 +238,10 @@ This will test that the hook dispatcher correctly runs pre-commit (if configured
 If you previously used `pre-commit install` in repositories:
 - You can safely leave existing `.git/hooks/` as they won't be used (global `core.hooksPath` takes precedence)
 - Or clean them up with `pre-commit uninstall` in each repo if you prefer
+
+### `btw` command not found
+If the `btw` command is not accessible:
+- Ensure `~/.local/bin` is in your PATH: `echo $PATH | grep ~/.local/bin`
+- Add to your shell profile if missing: `echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zshrc && source ~/.zshrc`
+- Verify the symlink exists: `ls -la ~/.local/bin/btw`
+- Re-run the installation if needed: `./install.sh`
