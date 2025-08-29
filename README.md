@@ -10,8 +10,8 @@ Automatically aggregate your git commit messages daily into markdown logs, group
 Use the automated installation script:
 
 ```bash
-git clone https://your.git.server/CaptainsLog.git ~/.captains-log
-cd ~/.captains-log
+git clone git@github.com:koradon/captains-log.git
+cd to/cloned/repo
 chmod +x install.sh
 ./install.sh
 ```
@@ -48,7 +48,7 @@ If you prefer to install manually:
 1. Clone or download Captain's Log:
 
 ```bash
-git clone https://your.git.server/CaptainsLog.git ~/.captains-log
+git clone git@github.com:koradon/captains-log.git ~/.captains-log
 cd ~/.captains-log
 ```
 
