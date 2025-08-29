@@ -13,16 +13,21 @@ mkdir -p "$GIT_HOOKS_DIR"
 
 # Copy script and hook
 echo "Copying update_log.py and commit-msg..."
-cp update_log.py "$CAPT_LOG_DIR/"
+cp src/update_log.py "$CAPT_LOG_DIR/"
 cp commit-msg "$CAPT_LOG_DIR/"
 
 # Copy commit-msg hook to git hooks directory (this is where git will look for it)
 cp commit-msg "$GIT_HOOKS_DIR/commit-msg"
 
+# Copy btw script for global access
+echo "Installing btw command..."
+cp src/btw "$CAPT_LOG_DIR/"
+
 # Make executables
 chmod +x "$CAPT_LOG_DIR/update_log.py"
 chmod +x "$CAPT_LOG_DIR/commit-msg"
 chmod +x "$GIT_HOOKS_DIR/commit-msg"
+chmod +x "$CAPT_LOG_DIR/btw"
 
 # Create basic config.yml if not exist
 if [ ! -f "$CONFIG_FILE" ]; then
@@ -66,5 +71,32 @@ else
   echo "PyYAML is already installed."
 fi
 
+# Setup PATH for btw command
+LOCAL_BIN_DIR="$HOME/.local/bin"
+mkdir -p "$LOCAL_BIN_DIR"
+
+# Create symlink for btw command
+if [ ! -L "$LOCAL_BIN_DIR/btw" ]; then
+  echo "Creating symlink for btw command in $LOCAL_BIN_DIR..."
+  ln -sf "$CAPT_LOG_DIR/btw" "$LOCAL_BIN_DIR/btw"
+else
+  echo "btw command already linked."
+fi
+
+# Check if ~/.local/bin is in PATH
+if [[ ":$PATH:" != *":$LOCAL_BIN_DIR:"* ]]; then
+  echo ""
+  echo "NOTE: $LOCAL_BIN_DIR is not in your PATH."
+  echo "To use the 'btw' command from anywhere, add this line to your shell profile:"
+  echo "  export PATH=\"\$HOME/.local/bin:\$PATH\""
+  echo ""
+  echo "For example, add it to ~/.zshrc (zsh) or ~/.bashrc (bash):"
+  echo "  echo 'export PATH=\"\$HOME/.local/bin:\$PATH\"' >> ~/.zshrc"
+  echo "  source ~/.zshrc"
+  echo ""
+fi
+
 echo "Installation complete! You can now commit as usual."
 echo "Remember to edit your config file at $CONFIG_FILE with your project paths and log repo."
+echo ""
+echo "New feature: Use 'btw \"your note\"' to add manual entries to your daily log!"
