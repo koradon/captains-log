@@ -6,9 +6,9 @@ with a temporary commit message file.
 """
 
 import os
+import subprocess
 import sys
 import tempfile
-import subprocess
 from pathlib import Path
 
 
@@ -71,5 +71,3 @@ def test_dispatcher():
 if __name__ == "__main__":
     ok = test_dispatcher()
     sys.exit(0 if ok else 1)
-
-

@@ -6,5 +6,3 @@ if command -v pre-commit >/dev/null 2>&1 && [ -f ".pre-commit-config.yaml" ]; th
 fi
 
 exit 0
-
-
