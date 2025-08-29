@@ -4,8 +4,9 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
-import update_log
 import yaml
+
+import update_log
 
 
 # Test load_config function
