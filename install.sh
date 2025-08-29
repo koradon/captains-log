@@ -21,12 +21,14 @@ cp commit-msg "$GIT_HOOKS_DIR/commit-msg"
 
 # Copy btw script for global access
 echo "Installing btw command..."
-cp src/btw "$CAPT_LOG_DIR/"
+cp src/btw.py "$CAPT_LOG_DIR/"
+cp btw "$CAPT_LOG_DIR/"
 
 # Make executables
 chmod +x "$CAPT_LOG_DIR/update_log.py"
 chmod +x "$CAPT_LOG_DIR/commit-msg"
 chmod +x "$GIT_HOOKS_DIR/commit-msg"
+chmod +x "$CAPT_LOG_DIR/btw.py"
 chmod +x "$CAPT_LOG_DIR/btw"
 
 # Create basic config.yml if not exist
