@@ -12,7 +12,7 @@ COMMIT_MSG=$(head -n1 "$1")
 COMMIT_SHA=$(git rev-parse --verify HEAD 2>/dev/null || echo "no-sha")
 
 # Path to the update script
-SCRIPT_PATH="$HOME/.captains-log/update_log.py"
+SCRIPT_PATH="$HOME/.captains-log/src/update_log.py"
 
 # Check if script exists
 if [ ! -f "$SCRIPT_PATH" ]; then

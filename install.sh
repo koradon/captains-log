@@ -11,24 +11,23 @@ echo "=== Installing Captain's Log ==="
 mkdir -p "$CAPT_LOG_DIR"
 mkdir -p "$GIT_HOOKS_DIR"
 
-# Copy script and hook
-echo "Copying update_log.py and commit-msg..."
-cp src/update_log.py "$CAPT_LOG_DIR/"
+# Copy the entire src directory structure with domain modules
+echo "Copying refactored source code and domain modules..."
+cp -r src "$CAPT_LOG_DIR/"
 cp commit-msg "$CAPT_LOG_DIR/"
 
 # Copy commit-msg hook to git hooks directory (this is where git will look for it)
 cp commit-msg "$GIT_HOOKS_DIR/commit-msg"
 
-# Copy btw script for global access
+# Copy btw wrapper script for global access
 echo "Installing btw command..."
-cp src/btw.py "$CAPT_LOG_DIR/"
 cp btw "$CAPT_LOG_DIR/"
 
 # Make executables
-chmod +x "$CAPT_LOG_DIR/update_log.py"
+chmod +x "$CAPT_LOG_DIR/src/update_log.py"
+chmod +x "$CAPT_LOG_DIR/src/btw.py"
 chmod +x "$CAPT_LOG_DIR/commit-msg"
 chmod +x "$GIT_HOOKS_DIR/commit-msg"
-chmod +x "$CAPT_LOG_DIR/btw.py"
 chmod +x "$CAPT_LOG_DIR/btw"
 
 # Create basic config.yml if not exist
