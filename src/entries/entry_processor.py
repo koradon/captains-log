@@ -59,13 +59,15 @@ class EntryProcessor:
         Returns:
             Updated list of entries
         """
+        # Create a copy to avoid mutating the original list
+        updated_entries = entries.copy()
         new_entry = self.formatter.format_manual_entry(entry_text)
 
         # Check if entry already exists to avoid duplicates
-        if new_entry not in entries:
-            entries.append(new_entry)
+        if new_entry not in updated_entries:
+            updated_entries.append(new_entry)
 
-        return entries
+        return updated_entries
 
     def organize_repos_for_output(
         self, repos: Dict[str, List[str]], other_at_end: bool = False

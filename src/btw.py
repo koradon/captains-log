@@ -53,7 +53,6 @@ def add_manual_entry(entry_text: str):
     if len(updated_entries) > len(other_entries):
         # Update log data
         log_data.set_repo_entries(category, updated_entries)
-
         # Save the updated log with 'other' at the end
         log_manager.save_log(log_info, log_data, other_at_end=True)
 
