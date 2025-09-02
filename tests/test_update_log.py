@@ -9,31 +9,6 @@ import yaml
 import update_log
 
 
-# Test load_config function
-@pytest.mark.skip(
-    reason="Legacy test replaced by domain-specific tests in test_config.py"
-)
-def test_load_config_file_exists(tmp_path):
-    """Test loading config from existing file - DEPRECATED: See test_config.py"""
-    pass
-
-
-@pytest.mark.skip(
-    reason="Legacy test replaced by domain-specific tests in test_config.py"
-)
-def test_load_config_file_not_exists():
-    """Test loading config when file doesn't exist - DEPRECATED: See test_config.py"""
-    pass
-
-
-@pytest.mark.skip(
-    reason="Legacy test replaced by domain-specific tests in test_config.py"
-)
-def test_load_config_empty_file(tmp_path):
-    """Test loading config from empty file - DEPRECATED: See test_config.py"""
-    pass
-
-
 # Test find_project function
 def test_find_project_configured_match():
     """Test finding project from configured projects"""
@@ -350,15 +325,6 @@ def test_commit_and_push_git_error(mock_run, tmp_path):
     with patch("builtins.print") as mock_print:
         update_log.commit_and_push(log_repo_path, file_path, "Test commit")
         mock_print.assert_called()
-
-
-# Test main function
-@pytest.mark.skip(
-    reason="Legacy test replaced by functional tests - main() works as verified by manual testing"
-)
-def test_main_success():
-    """Test successful main execution - DEPRECATED: Functionality verified by manual tests"""
-    pass
 
 
 def test_main_insufficient_args(monkeypatch):
