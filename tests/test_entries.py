@@ -164,7 +164,7 @@ def test_entry_processor_organize_repos_for_output_normal():
     processor = EntryProcessor()
     repos = {"zebra": ["- Entry 1"], "alpha": ["- Entry 2"], "beta": ["- Entry 3"]}
 
-    result = processor.organize_repos_for_output(repos, other_at_end=False)
+    result = processor.organize_repos_for_output(repos)
     expected_order = ["alpha", "beta", "zebra"]
     assert list(result.keys()) == expected_order
 
@@ -178,7 +178,7 @@ def test_entry_processor_organize_repos_for_output_other_at_end():
         "alpha": ["- Entry 2"],
     }
 
-    result = processor.organize_repos_for_output(repos, other_at_end=True)
+    result = processor.organize_repos_for_output(repos)
     expected_order = ["alpha", "zebra", "other"]
     assert list(result.keys()) == expected_order
 
@@ -188,6 +188,6 @@ def test_entry_processor_organize_repos_for_output_no_other():
     processor = EntryProcessor()
     repos = {"zebra": ["- Entry 1"], "alpha": ["- Entry 2"]}
 
-    result = processor.organize_repos_for_output(repos, other_at_end=True)
+    result = processor.organize_repos_for_output(repos)
     expected_order = ["alpha", "zebra"]
     assert list(result.keys()) == expected_order

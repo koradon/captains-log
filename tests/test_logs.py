@@ -179,7 +179,7 @@ def test_log_writer_write_log_file_other_at_end(tmp_path):
         }
     )
 
-    writer = LogWriter(other_at_end=True)
+    writer = LogWriter()
     writer.write_log_file(file_path, log_data)
 
     content = file_path.read_text()

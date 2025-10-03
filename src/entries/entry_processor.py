@@ -70,21 +70,16 @@ class EntryProcessor:
         return updated_entries
 
     def organize_repos_for_output(
-        self, repos: Dict[str, List[str]], other_at_end: bool = False
+        self, repos: Dict[str, List[str]]
     ) -> Dict[str, List[str]]:
         """Organize repositories for output with optional 'other' section placement.
 
         Args:
             repos: Dictionary of repo names to entry lists
-            other_at_end: Whether to place 'other' section at the end
 
         Returns:
             Ordered dictionary ready for output
         """
-        if not other_at_end:
-            # Standard alphabetical sorting
-            return dict(sorted(repos.items(), key=lambda x: x[0].lower()))
-
         # Custom sorting with 'other' at the end
         other_entries = repos.pop("other", None)
         sorted_repos = dict(sorted(repos.items(), key=lambda x: x[0].lower()))
