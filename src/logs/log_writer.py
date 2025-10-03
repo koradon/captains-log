@@ -13,13 +13,8 @@ class LogWriter:
     HEADER = "# What I did\n\n"
     FOOTER = "# Whats next\n\n\n# What Broke or Got Weird\n"
 
-    def __init__(self, other_at_end: bool = False):
-        """Initialize the log writer.
-
-        Args:
-            other_at_end: Whether to place 'other' section at the end
-        """
-        self.other_at_end = other_at_end
+    def __init__(self):
+        """Initialize the log writer."""
         self.entry_processor = EntryProcessor()
 
     def write_log_file(self, file_path: Path, log_data: LogData):
@@ -56,7 +51,7 @@ class LogWriter:
 
             # Organize repositories for output
             organized_repos = self.entry_processor.organize_repos_for_output(
-                log_data.repos, self.other_at_end
+                log_data.repos
             )
 
             # Generate content lines

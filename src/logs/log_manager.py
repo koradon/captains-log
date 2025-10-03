@@ -82,15 +82,12 @@ class LogManager:
         """
         return self.parser.parse_log_file(log_info.file_path)
 
-    def save_log(
-        self, log_info: LogFileInfo, log_data: LogData, other_at_end: bool = False
-    ):
+    def save_log(self, log_info: LogFileInfo, log_data: LogData):
         """Save log data to file.
 
         Args:
             log_info: Log file information
             log_data: Log data to save
-            other_at_end: Whether to place 'other' section at the end
         """
-        writer = LogWriter(other_at_end=other_at_end)
+        writer = LogWriter()
         writer.write_log_file(log_info.file_path, log_data)

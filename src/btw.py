@@ -54,7 +54,7 @@ def add_manual_entry(entry_text: str):
         # Update log data
         log_data.set_repo_entries(category, updated_entries)
         # Save the updated log with 'other' at the end
-        log_manager.save_log(log_info, log_data, other_at_end=True)
+        log_manager.save_log(log_info, log_data)
 
         # Commit and push if we have a git repository
         if log_info.has_git_repo:
