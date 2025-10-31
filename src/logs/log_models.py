@@ -11,6 +11,7 @@ class LogData:
     """Represents the structured data of a log file."""
 
     repos: Dict[str, List[str]] = field(default_factory=dict)
+    what_broke: List[str] = field(default_factory=list)
 
     def get_repo_entries(self, repo_name: str) -> List[str]:
         """Get entries for a specific repository."""
@@ -29,6 +30,15 @@ class LogData:
     def has_repo(self, repo_name: str) -> bool:
         """Check if a repository exists in the log data."""
         return repo_name in self.repos
+
+    def get_what_broke_entries(self) -> List[str]:
+        """Get all entries from the 'What Broke or Got Weird' section."""
+        return self.what_broke
+
+    def add_what_broke_entry(self, entry: str):
+        """Add an entry to the 'What Broke or Got Weird' section."""
+        if entry not in self.what_broke:
+            self.what_broke.append(entry)
 
 
 @dataclass

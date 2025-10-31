@@ -19,7 +19,7 @@ chmod +x install.sh
 The `install.sh` script will:
 - Create necessary directories (`~/.captains-log` and `~/.git-hooks`)
 - Copy `update_log.py` and `commit-msg` hook to the right locations
-- Install the `btw` command globally (accessible from anywhere)
+- Install the `btw` and `wtf` commands globally (accessible from anywhere)
 - Set proper executable permissions
 - Create a default `config.yml` file
 - Configure global git hooks path
@@ -141,7 +141,9 @@ After setup, every git commit you make will update a daily markdown log file ins
 
 Logs are grouped by repository name under each project, with a date-based file (e.g., 2025-08-11.md).
 
-### Manual Log Entries with `btw` Command
+### Manual Log Entries with `btw` and `wtf` Commands
+
+#### `btw` Command - Log What You Did
 The `btw` (By The Way) command allows you to add manual entries to your daily logs from anywhere on your system:
 
 ```bash
@@ -150,11 +152,22 @@ btw "Had a productive meeting about the architecture"
 btw "Fixed a bug that wasn't committed yet"
 ```
 
-#### How `btw` Works:
+#### `wtf` Command - Log Issues and Problems
+The `wtf` (What The Fault) command allows you to log issues, bugs, and weird behavior in the "What Broke or Got Weird" section:
+
+```bash
+wtf "API endpoint started returning 500 errors"
+wtf "Database connection timeout after 10 minutes"
+wtf "Tests failing intermittently on CI"
+```
+
+#### How They Work:
 - **Smart Project Detection**: Uses the same project detection logic as git commits
   - If you're in a configured project directory → logs to that project
   - If not configured → uses the current directory name as project
-- **Consistent Location**: Entries appear in an "other" section at the end of your daily log
+- **Different Sections**:
+  - `btw` entries appear in the "What I did" section under "## other"
+  - `wtf` entries appear in the "What Broke or Got Weird" section
 - **Same Infrastructure**: Uses your existing Captain's Log configuration and repositories
 
 #### Examples:
@@ -163,22 +176,25 @@ btw "Fixed a bug that wasn't committed yet"
 # From within your configured project directory
 cd ~/work/my-project
 btw "Completed code review for new feature"
-# → Adds to my-project's daily log under "## other"
+# → Adds to my-project's daily log under "What I did" → "## other"
+
+wtf "Found memory leak in background worker"
+# → Adds to my-project's daily log under "What Broke or Got Weird" → "## other"
 
 # From any directory
 cd ~/Downloads
 btw "Downloaded and reviewed the client requirements"
-# → Adds to Downloads project log under "## other"
+# → Adds to Downloads project log under "What I did"
 ```
 
 #### Installation:
-The `btw` command is automatically installed with the main Captain's Log installation:
+Both commands are automatically installed with the main Captain's Log installation:
 - Accessible globally from any directory
-- Installed to `~/.local/bin/btw` (ensure `~/.local/bin` is in your PATH)
+- Installed to `~/.local/bin/btw` and `~/.local/bin/wtf` (ensure `~/.local/bin` is in your PATH)
 - No additional setup required after running `install.sh`
 
 #### Log Format:
-Your daily logs will show git commits by repository, followed by manual entries:
+Your daily logs will show git commits by repository in "What I did", followed by a flat list in "What Broke or Got Weird":
 
 ```markdown
 # What I did
@@ -192,6 +208,14 @@ Your daily logs will show git commits by repository, followed by manual entries:
 ## other
 - Manual entry added with btw command
 - Another manual note
+
+# Whats next
+
+
+# What Broke or Got Weird
+
+- Issue logged with wtf command
+- Another problem to investigate
 ```
 
 ## Testing
@@ -239,9 +263,9 @@ If you previously used `pre-commit install` in repositories:
 - You can safely leave existing `.git/hooks/` as they won't be used (global `core.hooksPath` takes precedence)
 - Or clean them up with `pre-commit uninstall` in each repo if you prefer
 
-### `btw` command not found
-If the `btw` command is not accessible:
+### `btw` or `wtf` command not found
+If the `btw` or `wtf` commands are not accessible:
 - Ensure `~/.local/bin` is in your PATH: `echo $PATH | grep ~/.local/bin`
 - Add to your shell profile if missing: `echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zshrc && source ~/.zshrc`
-- Verify the symlink exists: `ls -la ~/.local/bin/btw`
+- Verify the symlinks exist: `ls -la ~/.local/bin/btw ~/.local/bin/wtf`
 - Re-run the installation if needed: `./install.sh`
