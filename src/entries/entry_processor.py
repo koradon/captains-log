@@ -2,8 +2,8 @@
 
 from typing import Dict, List
 
-from entries.entry_formatter import EntryFormatter
-from entries.entry_models import CommitEntry
+from src.entries.entry_formatter import EntryFormatter
+from src.entries.entry_models import CommitEntry
 
 
 class EntryProcessor:

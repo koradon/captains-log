@@ -10,11 +10,11 @@ from datetime import date
 from pathlib import Path
 
 # Domain imports
-from config import load_config
-from entries import EntryProcessor
-from git import CommitParser, GitOperations
-from logs import LogManager
-from projects import ProjectFinder
+from src.config import load_config
+from src.entries import EntryProcessor
+from src.git import CommitParser, GitOperations
+from src.logs import LogManager
+from src.projects import ProjectFinder
 
 
 # Backward compatibility exports for existing tests
@@ -25,7 +25,7 @@ def load_config_legacy():
 
 def find_project(repo_path, config):
     """Legacy function for backward compatibility."""
-    from config.config_models import Config
+    from src.config.config_models import Config
 
     if not isinstance(config, Config):
         config = Config.from_dict(config)
@@ -37,7 +37,7 @@ def find_project(repo_path, config):
 
 def load_log(file_path):
     """Legacy function for backward compatibility."""
-    from logs import LogParser
+    from src.logs import LogParser
 
     parser = LogParser()
     log_data = parser.parse_log_file(file_path)
@@ -57,7 +57,7 @@ def update_commit_entries(entries, new_sha, new_msg):
 
 def save_log(file_path, repos):
     """Legacy function for backward compatibility."""
-    from logs import LogData, LogWriter
+    from src.logs import LogData, LogWriter
 
     writer = LogWriter()
     log_data = LogData(repos=repos)
@@ -72,8 +72,8 @@ def commit_and_push(log_repo_path, file_path, commit_msg):
 
 def get_log_repo_and_path(project, config):
     """Legacy function for backward compatibility."""
-    from config.config_models import Config
-    from projects.project_models import ProjectInfo
+    from src.config.config_models import Config
+    from src.projects.project_models import ProjectInfo
 
     if not isinstance(config, Config):
         config = Config.from_dict(config)
@@ -97,6 +97,13 @@ FOOTER = "# Whats next\n\n\n# What Broke or Got Weird\n"
 
 def main():
     """Main entry point for the update log script."""
+    # Check for version flag
+    if len(sys.argv) > 1 and sys.argv[1] in ("--version", "-v"):
+        from . import __version__
+
+        print(f"Captain's Log (update_log) v{__version__}")
+        sys.exit(0)
+
     if len(sys.argv) < 5:
         print(
             "Usage: update_log.py <repo_name> <repo_path> <commit_sha> <commit_message>"

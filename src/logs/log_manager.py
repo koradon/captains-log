@@ -3,11 +3,11 @@
 from datetime import date
 from pathlib import Path
 
-from config.config_models import Config
-from logs.log_models import LogData, LogFileInfo
-from logs.log_parser import LogParser
-from logs.log_writer import LogWriter
-from projects.project_models import ProjectInfo
+from src.config.config_models import Config
+from src.logs.log_models import LogData, LogFileInfo
+from src.logs.log_parser import LogParser
+from src.logs.log_writer import LogWriter
+from src.projects.project_models import ProjectInfo
 
 
 class LogManager:

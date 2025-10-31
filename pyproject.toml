@@ -1,6 +1,10 @@
+[build-system]
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
+
 [project]
 name = "captains-log"
-version = "0.1.0"
+dynamic = ["version"]
 description = "Automatically aggregate git commit messages daily into markdown logs"
 authors = [
     {name = "Captain's Log Team"}
@@ -9,6 +13,28 @@ readme = "README.md"
 requires-python = ">=3.8"
 dependencies = [
     "PyYAML>=6.0",
+]
+
+[project.scripts]
+btw = "src.btw:main"
+wtf = "src.wtf:main"
+captains-log = "src.cli:main"
+
+[tool.hatch.version]
+source = "vcs"
+
+[tool.hatch.build.hooks.vcs]
+version-file = "src/_version.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "src/",
+    "commit-msg",
+    "README.md",
+    "LICENSE",
 ]
 
 [dependency-groups]
