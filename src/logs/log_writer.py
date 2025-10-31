@@ -46,15 +46,12 @@ class LogWriter:
             if "# What I did" not in content:
                 content = self.HEADER + "\n\n" + self.FOOTER
 
-            # Split content to preserve footer
-            footer_part = self.FOOTER
-
-            # Organize repositories for output
+            # Organize repositories for output (What I did section)
             organized_repos = self.entry_processor.organize_repos_for_output(
                 log_data.repos
             )
 
-            # Generate content lines
+            # Generate content lines for "What I did" section
             content_lines = []
             for repo_name, entries in organized_repos.items():
                 if entries:  # Only include repos with entries
@@ -63,15 +60,28 @@ class LogWriter:
                     content_lines.append("")  # Empty line after section
 
             # Construct final content
-            if content_lines:
-                new_content = (
-                    self.HEADER
-                    + "\n".join(content_lines).rstrip()
-                    + "\n\n"
-                    + footer_part
-                )
+            what_i_did_content = (
+                "\n".join(content_lines).rstrip() if content_lines else ""
+            )
+
+            # Build the complete log structure
+            new_content = self.HEADER
+            if what_i_did_content:
+                new_content += what_i_did_content + "\n\n"
             else:
-                new_content = self.HEADER + "\n" + footer_part
+                new_content += "\n"
+
+            # Add the "Whats next" section
+            new_content += "# Whats next\n\n\n"
+
+            # Add the "What Broke or Got Weird" section with flat list
+            new_content += "# What Broke or Got Weird\n"
+            if log_data.what_broke:
+                new_content += "\n"
+                for entry in log_data.what_broke:
+                    new_content += entry + "\n"
+            else:
+                new_content += "\n"
 
             # Write atomically to avoid corruption
             temp_file = file_path.with_suffix(file_path.suffix + ".tmp")

@@ -1,0 +1,38 @@
+#!/usr/bin/env python3
+import os
+import sys
+from pathlib import Path
+
+# Store the original working directory for project detection
+original_cwd = os.getcwd()
+
+# Add the src directory to Python path so domain modules can find each other
+# Resolve symlinks to get the real captains-log directory
+captains_log_dir = Path(__file__).resolve().parent
+src_dir = captains_log_dir / "src"
+sys.path.insert(0, str(src_dir))
+
+# Import and run the wtf module
+if __name__ == "__main__":
+    try:
+        # Restore original directory for proper project detection first
+        os.chdir(original_cwd)
+
+        # Import wtf from src directory with explicit path
+        import importlib.util
+
+        wtf_path = src_dir / "wtf.py"
+        spec = importlib.util.spec_from_file_location("wtf", wtf_path)
+        wtf = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(wtf)
+
+        # Run wtf with the original context preserved
+        wtf.main()
+    except ImportError as e:
+        print(f"Error: Cannot import wtf module: {e}")
+        print(f"Python path: {sys.path}")
+        print(f"Src directory exists: {src_dir.exists()}")
+        sys.exit(1)
+    except Exception as e:
+        print(f"Error running wtf: {e}")
+        sys.exit(1)

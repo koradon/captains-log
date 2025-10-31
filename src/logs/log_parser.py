@@ -1,8 +1,16 @@
 """Log file parsing functionality for Captain's Log."""
 
+from enum import Enum
 from pathlib import Path
 
 from logs.log_models import LogData
+
+
+class Section(Enum):
+    """Log file sections with their headers."""
+
+    WHAT_I_DID = "What I did"
+    WHAT_BROKE = "What Broke or Got Weird"
 
 
 class LogParser:
@@ -22,27 +30,12 @@ class LogParser:
             return LogData()
 
         try:
-            content = file_path.read_text(encoding="utf-8").splitlines()
+            content = file_path.read_text(encoding="utf-8")
         except (OSError, UnicodeDecodeError) as e:
             print(f"Warning: Could not read log file {file_path}: {e}")
             return LogData()
 
-        repos = {}
-        current_repo = None
-
-        for line in content:
-            line = line.strip()
-
-            if line.startswith("## "):
-                # Repository section header
-                current_repo = line[3:].strip()
-                if current_repo:  # Only add non-empty repo names
-                    repos[current_repo] = []
-            elif current_repo and line.startswith("- ") and line.strip():
-                # Entry line under a repository
-                repos[current_repo].append(line.strip())
-
-        return LogData(repos=repos)
+        return LogParser.parse_log_content(content)
 
     @staticmethod
     def parse_log_content(content: str) -> LogData:
@@ -56,18 +49,39 @@ class LogParser:
         """
         lines = content.splitlines()
         repos = {}
+        what_broke = []
+        current_section = None
         current_repo = None
 
         for line in lines:
-            line = line.strip()
+            line_stripped = line.strip()
 
-            if line.startswith("## "):
-                # Repository section header
-                current_repo = line[3:].strip()
-                if current_repo:  # Only add non-empty repo names
+            # Check for section headers
+            if line_stripped.startswith("# "):
+                if Section.WHAT_BROKE.value in line_stripped:
+                    current_section = Section.WHAT_BROKE
+                elif Section.WHAT_I_DID.value in line_stripped:
+                    current_section = Section.WHAT_I_DID
+                else:
+                    current_section = None  # Other sections, ignore
+                current_repo = None
+                continue
+
+            # Handle repository headers (## repo-name)
+            if (
+                line_stripped.startswith("## ")
+                and current_section == Section.WHAT_I_DID
+            ):
+                current_repo = line_stripped[3:].strip()
+                if current_repo:
                     repos[current_repo] = []
-            elif current_repo and line.startswith("- ") and line.strip():
-                # Entry line under a repository
-                repos[current_repo].append(line.strip())
+                continue
 
-        return LogData(repos=repos)
+            # Handle entry lines (- entry text)
+            if line_stripped.startswith("- ") and line_stripped:
+                if current_section == Section.WHAT_BROKE:
+                    what_broke.append(line_stripped)
+                elif current_section == Section.WHAT_I_DID and current_repo:
+                    repos[current_repo].append(line_stripped)
+
+        return LogData(repos=repos, what_broke=what_broke)
