@@ -23,6 +23,7 @@ fi
 
 # Run the update script
 export GIT_HOOK=1
+export PYTHONPATH="$HOME/.captains-log:$PYTHONPATH"
 if ! python3 "$SCRIPT_PATH" "$REPO_NAME" "$REPO_PATH" "$COMMIT_SHA" "$COMMIT_MSG"; then
     echo "Warning: Captain's Log update failed, but commit will continue"
     echo "Check the script output above for errors"
