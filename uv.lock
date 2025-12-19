@@ -60,7 +60,7 @@ filecache = [
 ]
 
 [[package]]
-name = "captains-log"
+name = "captainslog"
 source = { editable = "." }
 dependencies = [
     { name = "pyyaml" },

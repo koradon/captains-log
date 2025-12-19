@@ -3,7 +3,7 @@ requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
 
 [project]
-name = "captains-log"
+name = "captainslog"
 dynamic = ["version"]
 description = "Automatically aggregate git commit messages daily into markdown logs"
 authors = [
@@ -33,6 +33,7 @@ packages = ["src"]
 include = [
     "src/",
     "commit-msg",
+    "commit-msg-package",
     "README.md",
     "LICENSE",
 ]

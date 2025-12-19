@@ -6,10 +6,10 @@
 
 ```bash
 # Using pip
-pip install captains-log
+pip install captainslog
 
 # Or using uv (recommended)
-uv pip install captains-log
+uv pip install captainslog
 ```
 
 This will install:
@@ -88,7 +88,7 @@ uv pip install -e .
 ### Installation Flow
 
 ```
-1. pip install captains-log
+1. pip install captainslog
    └─> Installs Python package to site-packages
        └─> Creates console scripts:
            ├─> btw (accessible from anywhere)
@@ -124,10 +124,10 @@ captains-log --version
 
 ```bash
 # Upgrade to the latest version
-pip install --upgrade captains-log
+pip install --upgrade captainslog
 
 # Or with uv
-uv pip install --upgrade captains-log
+uv pip install --upgrade captainslog
 
 # Run setup again if hooks need updating
 captains-log setup
@@ -137,7 +137,7 @@ captains-log setup
 
 ```bash
 # Remove the package
-pip uninstall captains-log
+pip uninstall captainslog
 
 # Optionally, remove configuration and hooks
 rm -rf ~/.captains-log
@@ -183,5 +183,5 @@ This happens when:
 Solution:
 ```bash
 # Reinstall the package
-pip install --force-reinstall captains-log
+pip install --force-reinstall captainslog
 ```

@@ -7,7 +7,7 @@ except ImportError:
     from importlib_metadata import PackageNotFoundError, version  # type: ignore
 
 try:
-    __version__ = version("captains-log")
+    __version__ = version("captainslog")
 except PackageNotFoundError:
     # Package is not installed, try to get version from _version.py
     try:

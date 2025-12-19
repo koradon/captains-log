@@ -12,10 +12,10 @@ Install Captain's Log from PyPI:
 
 ```bash
 # Using pip
-pip install captains-log
+pip install captainslog
 
 # Or using uv (recommended)
-uv pip install captains-log
+uv pip install captainslog
 ```
 
 Then run the setup command:
