@@ -1,0 +1,21 @@
+#!/bin/bash
+
+# Exit on any error
+set -e
+
+# Get repository information
+REPO_NAME=$(basename "$(git rev-parse --show-toplevel)")
+REPO_PATH=$(git rev-parse --show-toplevel)
+COMMIT_MSG=$(head -n1 "$1")
+
+# Get commit SHA (handle both pre-commit and post-commit scenarios)
+COMMIT_SHA=$(git rev-parse --verify HEAD 2>/dev/null || echo "no-sha")
+
+# Run the update script using the installed package
+export GIT_HOOK=1
+if ! python3 -m src.update_log "$REPO_NAME" "$REPO_PATH" "$COMMIT_SHA" "$COMMIT_MSG"; then
+    echo "Warning: Captain's Log update failed, but commit will continue"
+    echo "Check the script output above for errors"
+    exit 0  # Don't fail the commit
+fi
+

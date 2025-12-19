@@ -39,16 +39,22 @@ def setup():
         package_dir = Path(src.__file__).parent
     except (ImportError, AttributeError):
         print("ERROR: Captain's Log package not found. Please install it first:")
-        print("  pip install captains-log")
+        print("  pip install captainslog")
         sys.exit(1)
 
     # Copy commit-msg hook
     print("Installing Git commit-msg hook...")
 
-    # Look for commit-msg in the package directory or parent
-    commit_msg_source = package_dir.parent / "commit-msg"
+    # Look for commit-msg-package (for package installations) first
+    commit_msg_source = package_dir.parent / "commit-msg-package"
+    if not commit_msg_source.exists():
+        # Fall back to regular commit-msg (for installation script)
+        commit_msg_source = package_dir.parent / "commit-msg"
     if not commit_msg_source.exists():
         # Try alternate location (when installed from wheel)
+        commit_msg_source = Path(__file__).parent.parent / "commit-msg-package"
+    if not commit_msg_source.exists():
+        # Final fallback
         commit_msg_source = Path(__file__).parent.parent / "commit-msg"
 
     if commit_msg_source.exists():
