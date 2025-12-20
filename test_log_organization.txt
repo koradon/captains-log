@@ -1,0 +1,5 @@
+# Test file for log organization feature
+
+This is a test commit to verify that log files are organized correctly.
+The log should be created in the main directory for the current month.
+
