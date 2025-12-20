@@ -80,7 +80,7 @@ uv pip install twine
 twine upload --repository testpypi dist/*
 
 # Test installation from TestPyPI
-pip install --index-url https://test.pypi.org/simple/ captainslog
+pip install --index-url https://test.pypi.org/simple/ git-captains-log
 
 # Verify it works
 captains-log --version
@@ -105,7 +105,7 @@ twine upload dist/*
 
 ```bash
 # In a fresh environment
-pip install captainslog
+pip install git-captains-log
 
 # Test it
 captains-log --version
@@ -168,7 +168,7 @@ Before publishing a new version:
 - [ ] Upload to TestPyPI (optional): `twine upload --repository testpypi dist/*`
 - [ ] Upload to PyPI: `twine upload dist/*`
 - [ ] Create GitHub release (if using GitHub Actions)
-- [ ] Test installation: `pip install captainslog`
+- [ ] Test installation: `pip install git-captains-log`
 - [ ] Announce the release!
 
 ## Version Bumping Strategy

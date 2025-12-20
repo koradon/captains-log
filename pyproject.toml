@@ -3,8 +3,9 @@ requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
 
 [project]
-name = "captainslog"
-dynamic = ["version"]
+name = "git-captains-log"
+version = "0.2.0"
+# dynamic = ["version"]  # Temporarily disabled for release
 description = "Automatically aggregate git commit messages daily into markdown logs"
 authors = [
     {name = "Captain's Log Team"}
@@ -20,8 +21,9 @@ btw = "src.btw:main"
 wtf = "src.wtf:main"
 captains-log = "src.cli:main"
 
-[tool.hatch.version]
-source = "vcs"
+# [tool.hatch.version]
+# source = "vcs"
+# Temporarily disabled for release - using static version above
 
 [tool.hatch.build.hooks.vcs]
 version-file = "src/_version.py"

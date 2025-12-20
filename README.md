@@ -12,10 +12,10 @@ Install Captain's Log from PyPI:
 
 ```bash
 # Using pip
-pip install captainslog
+pip install git-captains-log
 
 # Or using uv (recommended)
-uv pip install captainslog
+uv pip install git-captains-log
 ```
 
 Then run the setup command:

@@ -39,7 +39,7 @@ def setup():
         package_dir = Path(src.__file__).parent
     except (ImportError, AttributeError):
         print("ERROR: Captain's Log package not found. Please install it first:")
-        print("  pip install captainslog")
+        print("  pip install git-captains-log")
         sys.exit(1)
 
     # Copy commit-msg hook
