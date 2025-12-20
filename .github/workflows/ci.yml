@@ -71,7 +71,8 @@ jobs:
     - name: Test installation script
       run: |
         chmod +x install.sh
-        ./install.sh --dry-run
+        # Test that install.sh runs without errors (it's idempotent)
+        ./install.sh
 
     - name: Test package installation
       run: |

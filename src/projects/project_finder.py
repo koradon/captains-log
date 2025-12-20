@@ -3,8 +3,8 @@
 from pathlib import Path
 from typing import Optional
 
-from config.config_models import Config, ProjectConfig
-from projects.project_models import ProjectInfo
+from src.config.config_models import Config, ProjectConfig
+from src.projects.project_models import ProjectInfo
 
 
 class ProjectFinder:

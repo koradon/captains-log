@@ -3,7 +3,7 @@
 from enum import Enum
 from pathlib import Path
 
-from logs.log_models import LogData
+from src.logs.log_models import LogData
 
 
 class Section(Enum):

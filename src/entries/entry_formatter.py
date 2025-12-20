@@ -2,7 +2,7 @@
 
 from typing import List
 
-from entries.entry_models import CommitEntry, ManualEntry
+from src.entries.entry_models import CommitEntry, ManualEntry
 
 
 class EntryFormatter:

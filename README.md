@@ -6,7 +6,30 @@ Automatically aggregate your git commit messages daily into markdown logs, group
 
 ## Installation
 
-### Quick Install (Recommended)
+### From PyPI (Recommended for Users)
+
+Install Captain's Log from PyPI:
+
+```bash
+# Using pip
+pip install git-captains-log
+
+# Or using uv (recommended)
+uv pip install git-captains-log
+```
+
+Then run the setup command:
+
+```bash
+captains-log setup
+```
+
+This will configure Git hooks, create config files, and set everything up.
+
+See [INSTALLATION.md](INSTALLATION.md) for detailed installation instructions.
+
+### From Source (For Development)
+
 Use the automated installation script:
 
 ```bash

@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
-from config.config_models import ProjectConfig
+from src.config.config_models import ProjectConfig
 
 
 @dataclass

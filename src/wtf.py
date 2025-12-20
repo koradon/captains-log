@@ -11,11 +11,11 @@ from datetime import date
 from pathlib import Path
 
 # Domain imports
-from config import load_config
-from entries import EntryProcessor
-from git import GitOperations
-from logs import LogManager
-from projects import ProjectFinder
+from src.config import load_config
+from src.entries import EntryProcessor
+from src.git import GitOperations
+from src.logs import LogManager
+from src.projects import ProjectFinder
 
 
 def add_wtf_entry(entry_text: str):
@@ -69,6 +69,13 @@ def add_wtf_entry(entry_text: str):
 
 def main():
     """Main entry point for the wtf script."""
+    # Check for version flag
+    if len(sys.argv) > 1 and sys.argv[1] in ("--version", "-v"):
+        from . import __version__
+
+        print(f"Captain's Log (wtf) v{__version__}")
+        sys.exit(0)
+
     if len(sys.argv) < 2:
         print('Usage: wtf "What broke or got weird"')
         print('Example: wtf "API endpoint started returning 500 errors"')

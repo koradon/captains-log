@@ -11,11 +11,11 @@ from datetime import date
 from pathlib import Path
 
 # Domain imports
-from config import load_config
-from entries import EntryProcessor
-from git import GitOperations
-from logs import LogManager
-from projects import ProjectFinder
+from src.config import load_config
+from src.entries import EntryProcessor
+from src.git import GitOperations
+from src.logs import LogManager
+from src.projects import ProjectFinder
 
 
 def add_manual_entry(entry_text: str):
@@ -69,6 +69,13 @@ def add_manual_entry(entry_text: str):
 
 def main():
     """Main entry point for the btw script."""
+    # Check for version flag
+    if len(sys.argv) > 1 and sys.argv[1] in ("--version", "-v"):
+        from . import __version__
+
+        print(f"Captain's Log (btw) v{__version__}")
+        sys.exit(0)
+
     if len(sys.argv) < 2:
         print('Usage: btw "What I have done"')
         print('Example: btw "Reviewed the new API documentation"')

@@ -2,8 +2,8 @@
 
 from pathlib import Path
 
-from entries.entry_processor import EntryProcessor
-from logs.log_models import LogData
+from src.entries.entry_processor import EntryProcessor
+from src.logs.log_models import LogData
 
 
 class LogWriter:

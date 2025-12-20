@@ -11,21 +11,11 @@ COMMIT_MSG=$(head -n1 "$1")
 # Get commit SHA (handle both pre-commit and post-commit scenarios)
 COMMIT_SHA=$(git rev-parse --verify HEAD 2>/dev/null || echo "no-sha")
 
-# Path to the update script
-SCRIPT_PATH="$HOME/.captains-log/src/update_log.py"
-
-# Check if script exists
-if [ ! -f "$SCRIPT_PATH" ]; then
-    echo "Warning: Captain's Log script not found at $SCRIPT_PATH"
-    echo "Please run the install script or check your installation."
-    exit 0  # Don't fail the commit
-fi
-
-# Run the update script
+# Run the update script using the installed package
 export GIT_HOOK=1
-export PYTHONPATH="$HOME/.captains-log:$PYTHONPATH"
-if ! python3 "$SCRIPT_PATH" "$REPO_NAME" "$REPO_PATH" "$COMMIT_SHA" "$COMMIT_MSG"; then
+if ! python3 -m src.update_log "$REPO_NAME" "$REPO_PATH" "$COMMIT_SHA" "$COMMIT_MSG"; then
     echo "Warning: Captain's Log update failed, but commit will continue"
     echo "Check the script output above for errors"
     exit 0  # Don't fail the commit
 fi
+
