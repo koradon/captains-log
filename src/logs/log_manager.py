@@ -26,7 +26,6 @@ class LogManager:
         """
         self.config = config
         self.parser = LogParser()
-        self._last_organized_month = None
 
     def get_log_file_info(
         self, project: ProjectInfo, log_date: Optional[date] = None
@@ -47,9 +46,8 @@ class LogManager:
         log_repo_path = project.log_repo or self.config.global_log_repo
 
         # Organize old files if needed
-        if self._should_organize_files(log_date, project, log_repo_path):
+        if self._has_old_files_in_main_directory(project, log_repo_path):
             self._organize_old_log_files(project, log_repo_path)
-            self._last_organized_month = (date.today().year, date.today().month)
 
         # Build the file path
         base_dir = self._get_base_directory(project, log_repo_path)
@@ -168,34 +166,6 @@ class LogManager:
             return (
                 base_dir / str(log_date.year) / f"{log_date.month:02d}" / log_file_name
             )
-
-    def _should_organize_files(
-        self, log_date: date, project: ProjectInfo, log_repo_path: Optional[Path] = None
-    ) -> bool:
-        """Determine if old log files should be organized.
-
-        Args:
-            log_date: Date of the log being accessed
-            project: Project information
-            log_repo_path: Optional log repository path
-
-        Returns:
-            True if files should be organized, False otherwise
-        """
-        today = date.today()
-        current_month = (today.year, today.month)
-
-        if self._is_current_month(log_date):
-            # When accessing current month, organize if it's a new month
-            return (
-                self._last_organized_month is None
-                or self._last_organized_month != current_month
-            )
-        else:
-            # When accessing past month logs, check if there are old files to organize
-            if self._last_organized_month is None:
-                return self._has_old_files_in_main_directory(project, log_repo_path)
-            return False
 
     def _has_old_files_in_main_directory(
         self, project: ProjectInfo, log_repo_path: Optional[Path] = None

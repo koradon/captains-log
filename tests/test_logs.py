@@ -515,3 +515,42 @@ def test_log_manager_organize_multiple_months(tmp_path):
 
     # Current month file should remain in base directory
     assert current_file.exists()
+
+
+def test_log_manager_organize_old_files_when_present(tmp_path):
+    """Test that old files in main directory are always organized.
+
+    This test ensures that old files in the main directory are organized
+    whenever they are detected, regardless of when organization last ran.
+    """
+    config = Config.from_dict({})
+    project_config = ProjectConfig(root=Path("/tmp/project"))
+    project = ProjectInfo(
+        name="test-project", config=project_config, base_dir=tmp_path / "test-project"
+    )
+
+    # Patch BASE_DIR first, then create base directory in the correct location
+    base_dir = tmp_path / ".captains-log" / "projects" / "test-project"
+    base_dir.mkdir(parents=True)
+
+    # Create old log files in base directory (from previous months)
+    old_file1 = base_dir / "2024.01.15.md"
+    old_file1.write_text("# Old log 1")
+    old_file2 = base_dir / "2024.02.20.md"
+    old_file2.write_text("# Old log 2")
+
+    manager = LogManager(config)
+
+    # Mock today as 2024-03-15 and patch BASE_DIR to use tmp_path
+    with patch("src.logs.log_manager.date") as mock_date, patch.object(
+        LogManager, "BASE_DIR", tmp_path / ".captains-log" / "projects"
+    ):
+        mock_date.today.return_value = date(2024, 3, 15)
+        # Access current month - this should trigger organization
+        manager.get_log_file_info(project)
+
+    # Old files should be moved to year/month subdirectories
+    assert not old_file1.exists()
+    assert not old_file2.exists()
+    assert (base_dir / "2024" / "01" / "2024.01.15.md").exists()
+    assert (base_dir / "2024" / "02" / "2024.02.20.md").exists()
