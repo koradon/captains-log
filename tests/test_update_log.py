@@ -427,10 +427,19 @@ def test_update_log_commit_uses_add_all(mock_run, tmp_path):
     current_file = base_dir / f"{today.year}.{today.month:02d}.{today.day:02d}.md"
     current_file.write_text("# Current log\n## test-repo\n")
 
-    # Mock git operations: status (shows changes), add_all, commit, push
+    # Mock git operations:
+    # - status (for has_changes check)
+    # - status (for add_all to get changes)
+    # - add .md file(s)
+    # - commit
+    # - push
+    file_name = current_file.name
     mock_run.side_effect = [
-        MagicMock(stdout=f"M  {current_file.name}"),  # status - has changes
-        MagicMock(),  # add_all
+        MagicMock(
+            stdout=f"M  {file_name}"
+        ),  # status - has changes (for has_changes check)
+        MagicMock(stdout=f"M  {file_name}"),  # status - for add_all to get changes
+        MagicMock(),  # add .md file
         MagicMock(),  # commit
         MagicMock(),  # push
     ]
@@ -455,17 +464,17 @@ def test_update_log_commit_uses_add_all(mock_run, tmp_path):
         # Run update_log.main which should commit with add_all
         update_log.main()
 
-    # Verify git operations were called in correct order: status, add_all, commit, push
-    assert mock_run.call_count == 4
-
-    # Get all call arguments
+    # Verify git operations were called
+    # add_all now calls: status (to get changes), then adds individual .md files
     all_calls = [call[0][0] for call in mock_run.call_args_list]
 
-    # Verify add_all was called (not add_file) - should contain "add", "-A"
-    add_all_found = any(
-        call == ["git", "-C", str(log_repo_path), "add", "-A"] for call in all_calls
+    # Verify add_all was called - it should add .md files individually (not add -A)
+    add_calls = [
+        call for call in all_calls if "add" in call and call[-1].endswith(".md")
+    ]
+    assert len(add_calls) > 0, (
+        f"add_all should have added .md files. Calls: {all_calls}"
     )
-    assert add_all_found, f"add_all should have been called. Calls: {all_calls}"
 
     # Verify commit was called (commit has format: ['git', '-C', path, 'commit', '-m', 'message'])
     commit_found = any(
