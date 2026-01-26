@@ -286,7 +286,7 @@ def test_commit_and_push_success(mock_run, tmp_path):
         MagicMock(),  # push
     ]
 
-    update_log.commit_and_push(log_repo_path, file_path, "Test commit")
+    update_log.commit_and_push(log_repo_path, "Test commit")
 
     assert mock_run.call_count == 4
 
@@ -305,7 +305,7 @@ def test_commit_and_push_no_changes(mock_run, tmp_path):
     mock_run.return_value = MagicMock(stdout="")
 
     with patch("builtins.print") as mock_print:
-        update_log.commit_and_push(log_repo_path, file_path, "Test commit")
+        update_log.commit_and_push(log_repo_path, "Test commit")
         mock_print.assert_called_with("No changes to commit, skipping git operations")
 
 
@@ -323,7 +323,7 @@ def test_commit_and_push_git_error(mock_run, tmp_path):
     mock_run.side_effect = subprocess.CalledProcessError(1, "git status")
 
     with patch("builtins.print") as mock_print:
-        update_log.commit_and_push(log_repo_path, file_path, "Test commit")
+        update_log.commit_and_push(log_repo_path, "Test commit")
         mock_print.assert_called()
 
 
@@ -391,3 +391,91 @@ def test_full_workflow(tmp_path):
         content = log_file.read_text()
         assert "## test-repo" in content
         assert "- (abc1234) Test commit message" in content
+
+
+@patch("subprocess.run")
+def test_update_log_commit_uses_add_all(mock_run, tmp_path):
+    """Test that commit_and_push uses add_all() to stage all changes."""
+    import yaml
+
+    # Create a git repository
+    log_repo_path = tmp_path / "log-repo"
+    log_repo_path.mkdir()
+    (log_repo_path / ".git").mkdir()
+
+    # Create config file
+    config_data = {
+        "global_log_repo": str(log_repo_path),
+        "projects": {"test-project": str(tmp_path / "test-project")},
+    }
+    config_file = tmp_path / "config.yml"
+    with open(config_file, "w") as f:
+        yaml.dump(config_data, f)
+
+    # Create project directory
+    project_dir = tmp_path / "test-project"
+    project_dir.mkdir()
+
+    # Create project directory structure
+    base_dir = tmp_path / ".captains-log" / "projects" / "test-project"
+    base_dir.mkdir(parents=True)
+
+    # Create current month log file
+    from datetime import date
+
+    today = date.today()
+    current_file = base_dir / f"{today.year}.{today.month:02d}.{today.day:02d}.md"
+    current_file.write_text("# Current log\n## test-repo\n")
+
+    # Mock git operations: status (shows changes), add_all, commit, push
+    mock_run.side_effect = [
+        MagicMock(stdout=f"M  {current_file.name}"),  # status - has changes
+        MagicMock(),  # add_all
+        MagicMock(),  # commit
+        MagicMock(),  # push
+    ]
+
+    # Patch sys.argv and config loading
+    from src.config.config_loader import set_config_path
+
+    with patch.object(
+        update_log.LogManager, "BASE_DIR", tmp_path / ".captains-log" / "projects"
+    ), patch(
+        "sys.argv",
+        [
+            "update_log.py",
+            "test-repo",
+            str(project_dir),
+            "abc123456",
+            "Test commit message",
+        ],
+    ):
+        # Set config path before running main
+        set_config_path(config_file)
+        # Run update_log.main which should commit with add_all
+        update_log.main()
+
+    # Verify git operations were called in correct order: status, add_all, commit, push
+    assert mock_run.call_count == 4
+
+    # Get all call arguments
+    all_calls = [call[0][0] for call in mock_run.call_args_list]
+
+    # Verify add_all was called (not add_file) - should contain "add", "-A"
+    add_all_found = any(
+        call == ["git", "-C", str(log_repo_path), "add", "-A"] for call in all_calls
+    )
+    assert add_all_found, f"add_all should have been called. Calls: {all_calls}"
+
+    # Verify commit was called (commit has format: ['git', '-C', path, 'commit', '-m', 'message'])
+    commit_found = any(
+        len(call) >= 4 and call[0] == "git" and call[1] == "-C" and call[3] == "commit"
+        for call in all_calls
+    )
+    assert commit_found, f"commit should have been called. Calls: {all_calls}"
+
+    # Verify push was called
+    push_found = any(
+        call == ["git", "-C", str(log_repo_path), "push"] for call in all_calls
+    )
+    assert push_found, f"push should have been called. Calls: {all_calls}"

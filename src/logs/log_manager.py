@@ -45,7 +45,8 @@ class LogManager:
         log_file_name = f"{log_date.year}.{log_date.month:02d}.{log_date.day:02d}.md"
         log_repo_path = project.log_repo or self.config.global_log_repo
 
-        # Organize old files if needed
+        # Organize old files - always check and organize files from previous months
+        base_dir = self._get_base_directory(project, log_repo_path)
         if self._has_old_files_in_main_directory(project, log_repo_path):
             self._organize_old_log_files(project, log_repo_path)
 
@@ -196,6 +197,7 @@ class LogManager:
                 file_year = int(match.group(1))
                 file_month = int(match.group(2))
 
+                # Organize files from previous months (not current month)
                 if file_year != current_year or file_month != current_month:
                     return True
 
@@ -227,6 +229,7 @@ class LogManager:
                 file_year = int(match.group(1))
                 file_month = int(match.group(2))
 
+                # Organize files from previous months (not current month)
                 if file_year != current_year or file_month != current_month:
                     files_to_move.append((file_path, file_year, file_month))
 
@@ -234,7 +237,7 @@ class LogManager:
 
     def _move_log_file_to_year_month(
         self, file_path: Path, file_year: int, file_month: int, base_dir: Path
-    ):
+    ) -> Optional[Path]:
         """Move a log file to its year/month subdirectory.
 
         Args:
@@ -250,8 +253,12 @@ class LogManager:
         if not target_path.exists():
             try:
                 file_path.rename(target_path)
+                return target_path
             except (OSError, PermissionError) as e:
                 print(f"Warning: Could not move {file_path} to {target_path}: {e}")
+                return None
+
+        return None
 
     def _organize_old_log_files(
         self, project: ProjectInfo, log_repo_path: Optional[Path] = None
@@ -268,6 +275,10 @@ class LogManager:
         base_dir = self._get_base_directory(project, log_repo_path)
         files_to_move = self._find_old_log_files(base_dir)
 
+        if not files_to_move:
+            return
+
+        # Move all files
         for file_path, file_year, file_month in files_to_move:
             self._move_log_file_to_year_month(
                 file_path, file_year, file_month, base_dir

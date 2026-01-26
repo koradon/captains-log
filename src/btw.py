@@ -60,7 +60,7 @@ def add_manual_entry(entry_text: str):
         if log_info.has_git_repo:
             git_ops = GitOperations(log_info.log_repo_path)
             commit_message = f"Add manual entry to {project.name} logs for {date.today().isoformat()}"
-            git_ops.commit_and_push(log_info.file_path, commit_message)
+            git_ops.commit_and_push(commit_message)
 
         print(f"Added entry to {project.name} log: {entry_text}")
     else:

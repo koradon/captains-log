@@ -207,16 +207,16 @@ def test_git_operations_commit_and_push_success(mock_run, tmp_path):
     file_path = repo_path / "test.txt"
     file_path.write_text("test")
 
-    # Mock git operations: status, add, commit, push
+    # Mock git operations: status, add_all, commit, push
     mock_run.side_effect = [
         MagicMock(stdout="M  test.txt"),  # status - has changes
-        MagicMock(),  # add
+        MagicMock(),  # add_all
         MagicMock(),  # commit
         MagicMock(),  # push
     ]
 
     git_ops = GitOperations(repo_path)
-    result = git_ops.commit_and_push(file_path, "Test commit")
+    result = git_ops.commit_and_push("Test commit")
 
     assert result is True
     assert mock_run.call_count == 4
@@ -229,11 +229,9 @@ def test_git_operations_commit_and_push_lock_files(tmp_path):
     git_dir.mkdir(parents=True)
     (git_dir / "index.lock").write_text("")
 
-    file_path = repo_path / "test.txt"
-
     git_ops = GitOperations(repo_path)
     with patch("builtins.print") as mock_print:
-        result = git_ops.commit_and_push(file_path, "Test commit")
+        result = git_ops.commit_and_push("Test commit")
         assert result is False
         mock_print.assert_called_with(
             "Warning: Git lock files found, skipping operations"
@@ -247,13 +245,89 @@ def test_git_operations_commit_and_push_no_changes(mock_run, tmp_path):
     git_dir = repo_path / ".git"
     git_dir.mkdir(parents=True)
 
-    file_path = repo_path / "test.txt"
-
     # Mock git status to show no changes
     mock_run.return_value = MagicMock(stdout="")
 
     git_ops = GitOperations(repo_path)
     with patch("builtins.print") as mock_print:
-        result = git_ops.commit_and_push(file_path, "Test commit")
+        result = git_ops.commit_and_push("Test commit")
         assert result is True
         mock_print.assert_called_with("No changes to commit, skipping git operations")
+
+
+@patch("subprocess.run")
+def test_git_operations_add_all_success(mock_run, tmp_path):
+    """Test successful add_all operation."""
+    repo_path = tmp_path / "repo"
+    git_ops = GitOperations(repo_path)
+
+    mock_run.return_value = MagicMock()
+    assert git_ops.add_all() is True
+    mock_run.assert_called_once_with(
+        ["git", "-C", str(repo_path), "add", "-A"],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+
+@patch("subprocess.run")
+def test_git_operations_add_all_error(mock_run, tmp_path):
+    """Test add_all error handling."""
+    repo_path = tmp_path / "repo"
+    git_ops = GitOperations(repo_path)
+
+    mock_run.side_effect = subprocess.CalledProcessError(1, "git")
+    assert git_ops.add_all() is False
+
+
+@patch("subprocess.run")
+def test_git_operations_commit_and_push_uses_add_all(mock_run, tmp_path):
+    """Test that commit_and_push uses add_all() instead of add_file()."""
+    repo_path = tmp_path / "repo"
+    git_dir = repo_path / ".git"
+    git_dir.mkdir(parents=True)
+
+    # Create multiple files to test add_all
+    file1 = repo_path / "test1.txt"
+    file2 = repo_path / "test2.txt"
+    file1.write_text("test1")
+    file2.write_text("test2")
+
+    # Mock git operations: status, add_all, commit, push
+    mock_run.side_effect = [
+        MagicMock(stdout="M  test1.txt\nM  test2.txt"),  # status - has changes
+        MagicMock(),  # add_all
+        MagicMock(),  # commit
+        MagicMock(),  # push
+    ]
+
+    git_ops = GitOperations(repo_path)
+    result = git_ops.commit_and_push("Test commit")
+
+    assert result is True
+    assert mock_run.call_count == 4
+
+    # Verify add_all was called (not add_file)
+    add_all_call = mock_run.call_args_list[1]
+    assert add_all_call[0][0] == ["git", "-C", str(repo_path), "add", "-A"]
+
+
+@patch("subprocess.run")
+def test_git_operations_commit_and_push_add_all_failure(mock_run, tmp_path):
+    """Test commit_and_push when add_all fails."""
+    repo_path = tmp_path / "repo"
+    git_dir = repo_path / ".git"
+    git_dir.mkdir(parents=True)
+
+    # Mock git operations: status succeeds, add_all fails
+    mock_run.side_effect = [
+        MagicMock(stdout="M  test.txt"),  # status - has changes
+        subprocess.CalledProcessError(1, "git add -A"),  # add_all fails
+    ]
+
+    git_ops = GitOperations(repo_path)
+    with patch("builtins.print") as mock_print:
+        result = git_ops.commit_and_push("Test commit")
+        assert result is False
+        mock_print.assert_called_with("Warning: Failed to add files to git")

@@ -66,6 +66,23 @@ class GitOperations:
         except (subprocess.CalledProcessError, ValueError):
             return False
 
+    def add_all(self) -> bool:
+        """Add all changes to the git staging area.
+
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            subprocess.run(
+                ["git", "-C", str(self.repo_path), "add", "-A"],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            return True
+        except subprocess.CalledProcessError:
+            return False
+
     def commit(self, message: str) -> bool:
         """Create a commit with the given message.
 
@@ -103,11 +120,10 @@ class GitOperations:
         except subprocess.CalledProcessError:
             return False
 
-    def commit_and_push(self, file_path: Path, commit_message: str) -> bool:
+    def commit_and_push(self, commit_message: str) -> bool:
         """Perform the complete commit and push workflow.
 
         Args:
-            file_path: Path to the file to commit
             commit_message: Commit message
 
         Returns:
@@ -124,9 +140,9 @@ class GitOperations:
                 print("No changes to commit, skipping git operations")
                 return True
 
-            # Add the file
-            if not self.add_file(file_path):
-                print(f"Warning: Failed to add file {file_path}")
+            # Add all changes
+            if not self.add_all():
+                print("Warning: Failed to add files to git")
                 return False
 
             # Commit

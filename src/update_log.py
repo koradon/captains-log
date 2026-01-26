@@ -64,10 +64,10 @@ def save_log(file_path, repos):
     writer.write_log_file(file_path, log_data)
 
 
-def commit_and_push(log_repo_path, file_path, commit_msg):
+def commit_and_push(log_repo_path, commit_msg):
     """Legacy function for backward compatibility."""
     git_ops = GitOperations(log_repo_path)
-    git_ops.commit_and_push(file_path, commit_msg)
+    git_ops.commit_and_push(commit_msg)
 
 
 def get_log_repo_and_path(project, config):
@@ -159,13 +159,13 @@ def main():
         # Save the updated log
         log_manager.save_log(log_info, log_data)
 
-        # Commit and push if we have a git repository
-        if log_info.has_git_repo:
+        # Commit and push all changes if we have a git repository
+        if log_info.has_git_repo and log_info.log_repo_path:
             git_ops = GitOperations(log_info.log_repo_path)
             commit_message = (
                 f"Update {project.name} logs for {date.today().isoformat()}"
             )
-            git_ops.commit_and_push(log_info.file_path, commit_message)
+            git_ops.commit_and_push(commit_message)
 
         print(f"Updated log for {repo_name} in project {project.name}")
 

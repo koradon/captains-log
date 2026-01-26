@@ -554,3 +554,41 @@ def test_log_manager_organize_old_files_when_present(tmp_path):
     assert not old_file2.exists()
     assert (base_dir / "2024" / "01" / "2024.01.15.md").exists()
     assert (base_dir / "2024" / "02" / "2024.02.20.md").exists()
+
+
+def test_log_manager_organize_does_not_commit(tmp_path):
+    """Test that organization does not trigger git operations."""
+    config = Config.from_dict({})
+    project_config = ProjectConfig(root=Path("/tmp/project"))
+    project = ProjectInfo(
+        name="test-project", config=project_config, base_dir=tmp_path / "test-project"
+    )
+
+    # Patch BASE_DIR first, then create base directory in the correct location
+    base_dir = tmp_path / ".captains-log" / "projects" / "test-project"
+    base_dir.mkdir(parents=True)
+
+    # Create old log files in base directory (from previous months)
+    old_file1 = base_dir / "2024.01.15.md"
+    old_file1.write_text("# Old log 1")
+    old_file2 = base_dir / "2024.02.20.md"
+    old_file2.write_text("# Old log 2")
+
+    manager = LogManager(config)
+
+    # Mock today as 2024-03-15 and patch BASE_DIR to use tmp_path
+    with patch("src.logs.log_manager.date") as mock_date, patch.object(
+        LogManager, "BASE_DIR", tmp_path / ".captains-log" / "projects"
+    ), patch("src.git.git_operations.GitOperations") as mock_git_ops_class:
+        mock_date.today.return_value = date(2024, 3, 15)
+        # Access current month - this should trigger organization
+        manager.get_log_file_info(project)
+
+    # Verify that GitOperations was never instantiated (no git operations)
+    mock_git_ops_class.assert_not_called()
+
+    # But files should still be organized
+    assert not old_file1.exists()
+    assert not old_file2.exists()
+    assert (base_dir / "2024" / "01" / "2024.01.15.md").exists()
+    assert (base_dir / "2024" / "02" / "2024.02.20.md").exists()
