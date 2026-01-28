@@ -60,7 +60,7 @@ def add_wtf_entry(entry_text: str):
             commit_message = (
                 f"Add WTF entry to {project.name} logs for {date.today().isoformat()}"
             )
-            git_ops.commit_and_push(log_info.file_path, commit_message)
+            git_ops.commit_and_push(commit_message)
 
         print(f"Added WTF entry to {project.name} log: {entry_text}")
     else:

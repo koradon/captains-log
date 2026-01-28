@@ -1,3 +1,0 @@
-Package test
-Package test 2
-Final test

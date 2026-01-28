@@ -326,3 +326,269 @@ def test_log_manager_save_log(tmp_path):
     content = log_file.read_text()
     assert "## test-repo" in content
     assert "- (abc123) Test commit" in content
+
+
+def test_log_manager_get_log_file_info_past_month(tmp_path):
+    """Test getting log file info for past month uses year/month subdirectory."""
+    config = Config.from_dict({})
+    project_config = ProjectConfig(root=Path("/tmp/project"))
+    project = ProjectInfo(
+        name="test-project", config=project_config, base_dir=Path("/tmp/project")
+    )
+
+    manager = LogManager(config)
+
+    # Mock today as 2024-03-15, request log for 2024-02-10 (past month)
+    with patch("src.logs.log_manager.date") as mock_date:
+        mock_date.today.return_value = date(2024, 3, 15)
+        log_info = manager.get_log_file_info(project, log_date=date(2024, 2, 10))
+
+    assert log_info.file_path.name == "2024.02.10.md"
+    # Should be in year/month subdirectory
+    assert log_info.file_path.parent.name == "02"
+    assert log_info.file_path.parent.parent.name == "2024"
+    assert (
+        log_info.file_path.parent.parent.parent == LogManager.BASE_DIR / "test-project"
+    )
+
+
+def test_log_manager_get_log_file_info_current_month(tmp_path):
+    """Test getting log file info for current month stays in base directory."""
+    config = Config.from_dict({})
+    project_config = ProjectConfig(root=Path("/tmp/project"))
+    project = ProjectInfo(
+        name="test-project", config=project_config, base_dir=Path("/tmp/project")
+    )
+
+    manager = LogManager(config)
+
+    # Mock today as 2024-03-15, request log for same date (current month)
+    with patch("src.logs.log_manager.date") as mock_date:
+        mock_date.today.return_value = date(2024, 3, 15)
+        log_info = manager.get_log_file_info(project, log_date=date(2024, 3, 15))
+
+    assert log_info.file_path.name == "2024.03.15.md"
+    # Should be in base directory, not in year/month subdirectory
+    assert log_info.file_path.parent == LogManager.BASE_DIR / "test-project"
+
+
+def test_log_manager_organize_old_files(tmp_path):
+    """Test that old log files are moved to year/month directories."""
+    config = Config.from_dict({})
+    project_config = ProjectConfig(root=Path("/tmp/project"))
+    project = ProjectInfo(
+        name="test-project", config=project_config, base_dir=tmp_path / "test-project"
+    )
+
+    # Patch BASE_DIR first, then create base directory in the correct location
+    base_dir = tmp_path / ".captains-log" / "projects" / "test-project"
+    base_dir.mkdir(parents=True)
+
+    # Create old log files in base directory (from previous month)
+    old_file1 = base_dir / "2024.01.15.md"
+    old_file1.write_text("# Old log 1")
+    old_file2 = base_dir / "2024.01.20.md"
+    old_file2.write_text("# Old log 2")
+
+    # Create current month log file
+    current_file = base_dir / "2024.03.10.md"
+    current_file.write_text("# Current log")
+
+    manager = LogManager(config)
+
+    # Mock today as 2024-03-15 and patch BASE_DIR to use tmp_path
+    with patch("src.logs.log_manager.date") as mock_date, patch.object(
+        LogManager, "BASE_DIR", tmp_path / ".captains-log" / "projects"
+    ):
+        mock_date.today.return_value = date(2024, 3, 15)
+        # Trigger organization by getting log file info for current month
+        manager.get_log_file_info(project)
+
+    # Old files should be moved to year/month subdirectory
+    assert not old_file1.exists()
+    assert not old_file2.exists()
+    assert (base_dir / "2024" / "01" / "2024.01.15.md").exists()
+    assert (base_dir / "2024" / "01" / "2024.01.20.md").exists()
+
+    # Current month file should remain in base directory
+    assert current_file.exists()
+
+
+def test_log_manager_load_log_fallback(tmp_path):
+    """Test loading log with fallback to old location."""
+    config = Config.from_dict({})
+    manager = LogManager(config)
+
+    # Mock BASE_DIR to point to tmp_path
+    base_dir = tmp_path / ".captains-log" / "projects" / "test-project"
+    base_dir.mkdir(parents=True)
+
+    # Create a log file in the old location (base directory)
+    old_log_file = base_dir / "2024.01.15.md"
+    old_log_file.write_text(
+        """# What I did
+
+## test-repo
+- (abc123) Test commit
+"""
+    )
+
+    # Create log_info pointing to new location (year/month subdirectory)
+    # but file hasn't been moved yet
+    log_info = LogFileInfo(
+        file_path=base_dir / "2024" / "01" / "2024.01.15.md",
+        log_repo_path=None,
+        project_name="test-project",
+        date_created=date(2024, 1, 15),
+    )
+
+    with patch.object(LogManager, "BASE_DIR", tmp_path / ".captains-log" / "projects"):
+        # Should find file in old location via fallback
+        log_data = manager.load_log(log_info)
+        assert log_data.repos == {"test-repo": ["- (abc123) Test commit"]}
+
+
+def test_log_manager_organize_multiple_months(tmp_path):
+    """Test organizing log files from multiple past months."""
+    config = Config.from_dict({})
+    project_config = ProjectConfig(root=Path("/tmp/project"))
+    project = ProjectInfo(
+        name="test-project", config=project_config, base_dir=tmp_path / "test-project"
+    )
+
+    # Patch BASE_DIR first, then create base directory in the correct location
+    base_dir = tmp_path / ".captains-log" / "projects" / "test-project"
+    base_dir.mkdir(parents=True)
+
+    # Create log files from multiple past months (simulating months of usage)
+    # November 2024
+    nov_file1 = base_dir / "2024.11.05.md"
+    nov_file1.write_text("# Nov log 1")
+    nov_file2 = base_dir / "2024.11.15.md"
+    nov_file2.write_text("# Nov log 2")
+
+    # December 2024
+    dec_file1 = base_dir / "2024.12.01.md"
+    dec_file1.write_text("# Dec log 1")
+    dec_file2 = base_dir / "2024.12.20.md"
+    dec_file2.write_text("# Dec log 2")
+
+    # January 2025
+    jan_file1 = base_dir / "2025.01.10.md"
+    jan_file1.write_text("# Jan log 1")
+    jan_file2 = base_dir / "2025.01.25.md"
+    jan_file2.write_text("# Jan log 2")
+
+    # Current month (March 2025)
+    current_file = base_dir / "2025.03.10.md"
+    current_file.write_text("# Current log")
+
+    manager = LogManager(config)
+
+    # Mock today as 2025-03-15 and patch BASE_DIR to use tmp_path
+    with patch("src.logs.log_manager.date") as mock_date, patch.object(
+        LogManager, "BASE_DIR", tmp_path / ".captains-log" / "projects"
+    ):
+        mock_date.today.return_value = date(2025, 3, 15)
+        # Trigger organization by getting log file info for current month
+        manager.get_log_file_info(project)
+
+    # All old files should be moved to their respective year/month subdirectories
+    assert not nov_file1.exists()
+    assert not nov_file2.exists()
+    assert not dec_file1.exists()
+    assert not dec_file2.exists()
+    assert not jan_file1.exists()
+    assert not jan_file2.exists()
+
+    # November files should be in 2024/11/
+    assert (base_dir / "2024" / "11" / "2024.11.05.md").exists()
+    assert (base_dir / "2024" / "11" / "2024.11.15.md").exists()
+
+    # December files should be in 2024/12/
+    assert (base_dir / "2024" / "12" / "2024.12.01.md").exists()
+    assert (base_dir / "2024" / "12" / "2024.12.20.md").exists()
+
+    # January files should be in 2025/01/
+    assert (base_dir / "2025" / "01" / "2025.01.10.md").exists()
+    assert (base_dir / "2025" / "01" / "2025.01.25.md").exists()
+
+    # Current month file should remain in base directory
+    assert current_file.exists()
+
+
+def test_log_manager_organize_old_files_when_present(tmp_path):
+    """Test that old files in main directory are always organized.
+
+    This test ensures that old files in the main directory are organized
+    whenever they are detected, regardless of when organization last ran.
+    """
+    config = Config.from_dict({})
+    project_config = ProjectConfig(root=Path("/tmp/project"))
+    project = ProjectInfo(
+        name="test-project", config=project_config, base_dir=tmp_path / "test-project"
+    )
+
+    # Patch BASE_DIR first, then create base directory in the correct location
+    base_dir = tmp_path / ".captains-log" / "projects" / "test-project"
+    base_dir.mkdir(parents=True)
+
+    # Create old log files in base directory (from previous months)
+    old_file1 = base_dir / "2024.01.15.md"
+    old_file1.write_text("# Old log 1")
+    old_file2 = base_dir / "2024.02.20.md"
+    old_file2.write_text("# Old log 2")
+
+    manager = LogManager(config)
+
+    # Mock today as 2024-03-15 and patch BASE_DIR to use tmp_path
+    with patch("src.logs.log_manager.date") as mock_date, patch.object(
+        LogManager, "BASE_DIR", tmp_path / ".captains-log" / "projects"
+    ):
+        mock_date.today.return_value = date(2024, 3, 15)
+        # Access current month - this should trigger organization
+        manager.get_log_file_info(project)
+
+    # Old files should be moved to year/month subdirectories
+    assert not old_file1.exists()
+    assert not old_file2.exists()
+    assert (base_dir / "2024" / "01" / "2024.01.15.md").exists()
+    assert (base_dir / "2024" / "02" / "2024.02.20.md").exists()
+
+
+def test_log_manager_organize_does_not_commit(tmp_path):
+    """Test that organization does not trigger git operations."""
+    config = Config.from_dict({})
+    project_config = ProjectConfig(root=Path("/tmp/project"))
+    project = ProjectInfo(
+        name="test-project", config=project_config, base_dir=tmp_path / "test-project"
+    )
+
+    # Patch BASE_DIR first, then create base directory in the correct location
+    base_dir = tmp_path / ".captains-log" / "projects" / "test-project"
+    base_dir.mkdir(parents=True)
+
+    # Create old log files in base directory (from previous months)
+    old_file1 = base_dir / "2024.01.15.md"
+    old_file1.write_text("# Old log 1")
+    old_file2 = base_dir / "2024.02.20.md"
+    old_file2.write_text("# Old log 2")
+
+    manager = LogManager(config)
+
+    # Mock today as 2024-03-15 and patch BASE_DIR to use tmp_path
+    with patch("src.logs.log_manager.date") as mock_date, patch.object(
+        LogManager, "BASE_DIR", tmp_path / ".captains-log" / "projects"
+    ), patch("src.git.git_operations.GitOperations") as mock_git_ops_class:
+        mock_date.today.return_value = date(2024, 3, 15)
+        # Access current month - this should trigger organization
+        manager.get_log_file_info(project)
+
+    # Verify that GitOperations was never instantiated (no git operations)
+    mock_git_ops_class.assert_not_called()
+
+    # But files should still be organized
+    assert not old_file1.exists()
+    assert not old_file2.exists()
+    assert (base_dir / "2024" / "01" / "2024.01.15.md").exists()
+    assert (base_dir / "2024" / "02" / "2024.02.20.md").exists()
