@@ -56,24 +56,22 @@ else
   echo "Global git hooks path already set."
 fi
 
-# Check for python3 and pyyaml
+# Check for python3 (but do not install global Python packages)
 if ! command -v python3 &>/dev/null; then
   echo "ERROR: python3 is not installed. Please install Python 3 first."
   exit 1
 fi
 
-PYTHON_MODULE="yaml"
-if ! python3 -c "import $PYTHON_MODULE" &>/dev/null; then
-  echo "PyYAML not found, installing via pip..."
-  if command -v pip3 &>/dev/null; then
-    pip3 install --user pyyaml
-  else
-    echo "pip3 not found. Please install pip or PyYAML manually."
-    exit 1
-  fi
-else
-  echo "PyYAML is already installed."
-fi
+echo ""
+echo "NOTE: install.sh no longer installs Python dependencies globally."
+echo "Make sure the 'git-captains-log' package (which depends on PyYAML)"
+echo "is installed in the Python environment used by your Git hooks, e.g.:"
+echo "  pipx install git-captains-log"
+echo "or:"
+echo "  uv tool install git+https://github.com/koradon/captains-log.git"
+echo "or, if you prefer a global install:"
+echo "  pip install git-captains-log"
+echo ""
 
 # Setup PATH for btw command
 LOCAL_BIN_DIR="$HOME/.local/bin"

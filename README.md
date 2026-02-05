@@ -6,16 +6,19 @@ Automatically aggregate your git commit messages daily into markdown logs, group
 
 ## Installation
 
-### From PyPI (Recommended for Users)
+### Recommended: PyPI + CLI tools
 
-Install Captain's Log from PyPI:
+Install Captain's Log as an isolated CLI tool and let the package manage its own dependencies:
 
 ```bash
-# Using pip
-pip install git-captains-log
+# Using pipx (recommended)
+pipx install git-captains-log
 
-# Or using uv (recommended)
+# Or using uv
 uv pip install git-captains-log
+
+# Or with plain pip (uses your current Python environment)
+pip install git-captains-log
 ```
 
 Then run the setup command:
@@ -24,29 +27,45 @@ Then run the setup command:
 captains-log setup
 ```
 
-This will configure Git hooks, create config files, and set everything up.
+This will:
+- Create `~/.captains-log/` for configuration
+- Create `~/.git-hooks/` for global Git hooks
+- Install or update the `commit-msg` hook
+- Configure `git config --global core.hooksPath ~/.git-hooks`
+- Create a default `~/.captains-log/config.yml` if it does not exist
 
-See [INSTALLATION.md](INSTALLATION.md) for detailed installation instructions.
+After that you can use `btw`, `wtf`, and `captains-log` from anywhere in your shell.
+
+See [INSTALLATION.md](INSTALLATION.md) for more detailed installation and configuration examples.
 
 ### From Source (For Development)
 
-Use the automated installation script:
+If you're developing Captain's Log locally:
 
 ```bash
 git clone git@github.com:koradon/captains-log.git
-cd to/cloned/repo
+cd captains-log
+
+# Install in editable mode (uses pyproject.toml dependencies)
+uv pip install -e .
+
+# Configure hooks and config file
+captains-log setup
+```
+
+#### Legacy helper script (`install.sh`)
+
+There is also a legacy helper script:
+
+```bash
 chmod +x install.sh
 ./install.sh
 ```
 
-The `install.sh` script will:
-- Create necessary directories (`~/.captains-log` and `~/.git-hooks`)
-- Copy `update_log.py` and `commit-msg` hook to the right locations
-- Install the `btw` and `wtf` commands globally (accessible from anywhere)
-- Set proper executable permissions
-- Create a default `config.yml` file
-- Configure global git hooks path
-- Check for Python 3 and install PyYAML if needed
+This script focuses on wiring up the `~/.captains-log` directory and global Git hooks.
+It **no longer installs Python dependencies globally** – you are expected to install
+the `git-captains-log` package (and therefore `PyYAML`) via `pipx`, `uv`, or `pip`
+in whatever Python environment your Git hooks will use.
 
 ### Pre-commit Integration (Optional)
 If you use [pre-commit](https://pre-commit.com/) in your repositories and want to keep both your global Captain's Log hooks and per-repo pre-commit hooks working together:
@@ -66,7 +85,7 @@ This will:
 **Note:** With pre-commit integration, you don't need to run `pre-commit install` in individual repositories. The global hooks will automatically invoke pre-commit when a repo has `.pre-commit-config.yaml`.
 
 ### Manual Installation
-If you prefer to install manually:
+If you prefer to install manually (legacy / advanced setup):
 
 1. Clone or download Captain's Log:
 
@@ -75,10 +94,15 @@ git clone git@github.com:koradon/captains-log.git ~/.captains-log
 cd ~/.captains-log
 ```
 
-2. Install dependencies
+2. Ensure dependencies are available
 
 ```bash
-pip install pyyaml
+# Prefer installing the packaged tool, which brings PyYAML as a dependency:
+pipx install git-captains-log
+# or:
+uv pip install git-captains-log
+# or, if you really want to use the system environment:
+pip install git-captains-log
 ```
 
 3. Configure your projects and global log repo in `~/.captains-log/config.yml`
