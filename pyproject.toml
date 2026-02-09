@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "git-captains-log"
-version = "0.2.1"
+version = "0.3.0"
 # dynamic = ["version"]  # Temporarily disabled for release
 description = "Automatically aggregate git commit messages daily into markdown logs"
 authors = [
