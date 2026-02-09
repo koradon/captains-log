@@ -53,6 +53,9 @@ dev = [
     "types-PyYAML>=6.0.0",
     "pre-commit>=3.0.0",
 ]
+publish = [
+    "build>=1.0.0",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
