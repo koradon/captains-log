@@ -34,7 +34,7 @@ This will:
 - Configure `git config --global core.hooksPath ~/.git-hooks`
 - Create a default `~/.captains-log/config.yml` if it does not exist
 
-After that you can use `btw`, `wtf`, and `captains-log` from anywhere in your shell.
+After that you can use `btw`, `wtf`, `wnext`, and `captains-log` from anywhere in your shell.
 
 See [INSTALLATION.md](INSTALLATION.md) for more detailed installation and configuration examples.
 
@@ -68,7 +68,24 @@ the `git-captains-log` package (and therefore `PyYAML`) via `pipx`, `uv`, or `pi
 in whatever Python environment your Git hooks will use.
 
 ### Pre-commit Integration (Optional)
-If you use [pre-commit](https://pre-commit.com/) in your repositories and want to keep both your global Captain's Log hooks and per-repo pre-commit hooks working together:
+If you use [pre-commit](https://pre-commit.com/) in your repositories and want to keep both your global Captain's Log hooks and per-repo pre-commit hooks working together, you can install global wrapper hooks via the CLI:
+
+```bash
+# After `pipx install git-captains-log` and `captains-log setup`
+captains-log install-precommit-hooks
+```
+
+This will:
+- Install global hook wrappers in `~/.git-hooks` that run pre-commit first (when `.pre-commit-config.yaml` exists)
+- Then run Captain's Log afterwards (via `~/.captains-log/commit-msg`)
+- Configure `git config --global core.hooksPath ~/.git-hooks` (or reuse the existing value if already correct)
+- Work seamlessly with repos that do and do not use pre-commit
+
+**Note:** With pre-commit integration, you don't need to run `pre-commit install` in individual repositories. The global hooks will automatically invoke pre-commit when a repo has `.pre-commit-config.yaml`.
+
+#### Legacy helper script (`install-with-precommit.sh`)
+
+For historical reasons there is also a shell helper script:
 
 ```bash
 # After running install.sh
@@ -76,13 +93,7 @@ chmod +x install-with-precommit.sh
 ./install-with-precommit.sh
 ```
 
-This will:
-- Install global hook wrappers that run pre-commit first (when `.pre-commit-config.yaml` exists)
-- Then run Captain's Log afterwards
-- Preserve your existing `core.hooksPath` configuration
-- Work seamlessly with repos that don't use pre-commit
-
-**Note:** With pre-commit integration, you don't need to run `pre-commit install` in individual repositories. The global hooks will automatically invoke pre-commit when a repo has `.pre-commit-config.yaml`.
+The script performs the same kind of global wrapper installation as `captains-log install-precommit-hooks`, but is kept mainly for backward compatibility.
 
 ### Manual Installation
 If you prefer to install manually (legacy / advanced setup):
@@ -188,7 +199,7 @@ After setup, every git commit you make will update a daily markdown log file ins
 
 Logs are grouped by repository name under each project, with a date-based file (e.g., 2025-08-11.md).
 
-### Manual Log Entries with `btw` and `wtf` Commands
+### Manual Log Entries with `btw`, `wtf`, and `wnext` Commands
 
 #### `btw` Command - Log What You Did
 The `btw` (By The Way) command allows you to add manual entries to your daily logs from anywhere on your system:
@@ -208,6 +219,21 @@ wtf "Database connection timeout after 10 minutes"
 wtf "Tests failing intermittently on CI"
 ```
 
+#### `wnext` Command - Log What’s Next
+
+The `wnext` command lets you quickly add items to the "Whats next" section of your daily logs:
+
+```bash
+# Default: log under the current project subsection
+wnext "Plan sprint backlog refinement"
+
+# Log under a specific project subsection
+wnext --project my-project "Prepare release checklist"
+
+# Log under the generic 'other' subsection
+wnext --other "Remember to update the team wiki"
+```
+
 #### How They Work:
 - **Smart Project Detection**: Uses the same project detection logic as git commits
   - If you're in a configured project directory → logs to that project
@@ -215,6 +241,7 @@ wtf "Tests failing intermittently on CI"
 - **Different Sections**:
   - `btw` entries appear in the "What I did" section under "## other"
   - `wtf` entries appear in the "What Broke or Got Weird" section
+  - `wnext` entries appear in the "Whats next" section, grouped by project subsection or under "## other"
 - **Same Infrastructure**: Uses your existing Captain's Log configuration and repositories
 
 #### Examples:
@@ -235,13 +262,12 @@ btw "Downloaded and reviewed the client requirements"
 ```
 
 #### Installation:
-Both commands are automatically installed with the main Captain's Log installation:
-- Accessible globally from any directory
-- Installed to `~/.local/bin/btw` and `~/.local/bin/wtf` (ensure `~/.local/bin` is in your PATH)
-- No additional setup required after running `install.sh`
+All three commands are automatically installed with the main Captain's Log installation:
+- Accessible globally from any directory (via the `pipx`/`pip` console scripts)
+- When using the legacy `install.sh`, wrapper scripts are installed to `~/.local/bin/btw`, `~/.local/bin/wtf`, and `~/.local/bin/wnext` (ensure `~/.local/bin` is in your PATH)
 
 #### Log Format:
-Your daily logs will show git commits by repository in "What I did", followed by a flat list in "What Broke or Got Weird":
+Your daily logs will show git commits by repository in "What I did", followed by "Whats next" (with optional subsections) and a flat list in "What Broke or Got Weird":
 
 ```markdown
 # What I did
@@ -258,6 +284,11 @@ Your daily logs will show git commits by repository in "What I did", followed by
 
 # Whats next
 
+## my-project
+- Next action logged with wnext
+
+## other
+- General next step logged with wnext --other
 
 # What Broke or Got Weird
 
@@ -292,7 +323,7 @@ This will test that the hook dispatcher correctly runs pre-commit (if configured
 - Verify the `commit-msg` file exists in `~/.git-hooks/` and is executable
 
 ### Pre-commit integration issues
-- Ensure you ran `install.sh` before `install-with-precommit.sh`
+- Ensure you ran `captains-log setup` (or `install.sh` for legacy) before `captains-log install-precommit-hooks` (or `install-with-precommit.sh`)
 - Check that both `commit-msg` and `commit-msg-precommit` exist in `~/.git-hooks/`
 - If pre-commit errors occur, verify you have pre-commit installed: `pip install pre-commit`
 - The integration only runs pre-commit in repos with `.pre-commit-config.yaml`
@@ -310,9 +341,9 @@ If you previously used `pre-commit install` in repositories:
 - You can safely leave existing `.git/hooks/` as they won't be used (global `core.hooksPath` takes precedence)
 - Or clean them up with `pre-commit uninstall` in each repo if you prefer
 
-### `btw` or `wtf` command not found
-If the `btw` or `wtf` commands are not accessible:
+### `btw`, `wtf`, or `wnext` command not found
+If the `btw`, `wtf`, or `wnext` commands are not accessible:
 - Ensure `~/.local/bin` is in your PATH: `echo $PATH | grep ~/.local/bin`
 - Add to your shell profile if missing: `echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zshrc && source ~/.zshrc`
-- Verify the symlinks exist: `ls -la ~/.local/bin/btw ~/.local/bin/wtf`
-- Re-run the installation if needed: `./install.sh`
+- Verify the symlinks exist (legacy script install): `ls -la ~/.local/bin/btw ~/.local/bin/wtf ~/.local/bin/wnext`
+- Re-run the installation if needed: `./install.sh` or reinstall the package with `pipx install git-captains-log`

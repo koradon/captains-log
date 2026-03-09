@@ -132,6 +132,112 @@ projects:
     print()
 
 
+def install_precommit_hooks():
+    """Install global pre-commit wrapper hooks for Captain's Log."""
+    print("=== Installing pre-commit wrapper hooks (global) ===")
+
+    git_hooks_dir = Path.home() / ".git-hooks"
+    git_hooks_dir.mkdir(parents=True, exist_ok=True)
+
+    def write_hook(name: str, content: str) -> None:
+        path = git_hooks_dir / name
+        path.write_text(content, encoding="utf-8")
+        path.chmod(0o755)
+        print(f"  ✓ Installed {name} to {path}")
+
+    pre_commit = """#!/usr/bin/env sh
+
+# Run repo's pre-commit hooks via pre-commit when configured.
+if command -v pre-commit >/dev/null 2>&1 && [ -f ".pre-commit-config.yaml" ]; then
+  exec pre-commit run --hook-stage pre-commit --color always
+fi
+
+exit 0
+"""
+
+    commit_msg_precommit = """#!/usr/bin/env sh
+
+# 1) Run commit-msg stage through pre-commit when configured in this repo
+if command -v pre-commit >/dev/null 2>&1 && [ -f ".pre-commit-config.yaml" ]; then
+  pre-commit run --hook-stage commit-msg --commit-msg-filename "$1" --color always || exit $?
+fi
+
+exit 0
+"""
+
+    captains_log = """#!/usr/bin/env sh
+
+# Captain's Log commit-msg dispatcher
+# Behavior:
+# - If commit-msg-precommit exists: run pre-commit first
+# - Always run Captain's Log hook afterwards
+
+set -eu
+
+HOOKS_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+PRECOMMIT_WRAPPER="$HOOKS_DIR/commit-msg-precommit"
+CAPTAINS_LOG_HOOK="$HOME/.captains-log/commit-msg"
+
+# 1) Run pre-commit wrapper if present
+if [ -x "$PRECOMMIT_WRAPPER" ]; then
+  "$PRECOMMIT_WRAPPER" "$@"
+fi
+
+# 2) Run the original Captain's Log hook
+if [ -x "$CAPTAINS_LOG_HOOK" ]; then
+  exec "$CAPTAINS_LOG_HOOK" "$@"
+fi
+
+exit 0
+"""
+
+    pre_push = """#!/usr/bin/env sh
+
+# Run repo's pre-push hooks via pre-commit when configured.
+if command -v pre-commit >/dev/null 2>&1 && [ -f ".pre-commit-config.yaml" ]; then
+  exec pre-commit run --hook-stage pre-push --color always
+fi
+
+exit 0
+"""
+
+    write_hook("pre-commit", pre_commit)
+    write_hook("commit-msg-precommit", commit_msg_precommit)
+    write_hook("commit-msg", captains_log)
+    write_hook("pre-push", pre_push)
+
+    # Set global git hooks path
+    print("\nConfiguring global Git hooks path...")
+    try:
+        result = subprocess.run(
+            ["git", "config", "--global", "core.hooksPath"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        current_hooks_path = result.stdout.strip()
+
+        if current_hooks_path != str(git_hooks_dir):
+            subprocess.run(
+                ["git", "config", "--global", "core.hooksPath", str(git_hooks_dir)],
+                check=True,
+            )
+            print(f"  ✓ Set global Git hooks path to {git_hooks_dir}")
+            if current_hooks_path:
+                print(f"  ⚠ Previous hooks path was: {current_hooks_path}")
+        else:
+            print("  ✓ Git hooks path already configured")
+    except subprocess.CalledProcessError as e:
+        print(f"  ✗ Error configuring Git hooks: {e}")
+        sys.exit(1)
+
+    print("\nDone. pre-commit wrappers are installed globally.")
+    print("- They run pre-commit in repos with .pre-commit-config.yaml")
+    print(
+        "- The commit-msg wrapper will also run Captain's Log if installed at ~/.captains-log"
+    )
+
+
 def main():
     """Main entry point for the captains-log CLI."""
     if len(sys.argv) < 2:
@@ -139,8 +245,11 @@ def main():
         print(f"Version: {__version__}")
         print()
         print("Usage:")
-        print("  captains-log setup           - Set up Captain's Log")
-        print("  captains-log --version       - Show version")
+        print("  captains-log setup                 - Set up Captain's Log")
+        print(
+            "  captains-log install-precommit-hooks - Install global pre-commit wrappers"
+        )
+        print("  captains-log --version             - Show version")
         print()
         print("After setup, use these commands:")
         print("  btw 'your note'              - Add manual log entries")
@@ -153,9 +262,11 @@ def main():
         print_version()
     elif command == "setup":
         setup()
+    elif command == "install-precommit-hooks":
+        install_precommit_hooks()
     else:
         print(f"Unknown command: {command}")
-        print("Available commands: setup, --version")
+        print("Available commands: setup, install-precommit-hooks, --version")
         sys.exit(1)
 
 
