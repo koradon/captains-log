@@ -296,6 +296,27 @@ def test_git_operations_add_all_error(mock_run, tmp_path):
 
 
 @patch("subprocess.run")
+def test_git_operations_add_all_single_file_uses_individual_add(mock_run, tmp_path):
+    """add_all with a single .md path uses the individual-add branch."""
+    repo_path = tmp_path / "repo"
+    repo_path.mkdir()
+    git_ops = GitOperations(repo_path)
+
+    # First call: status; second call: individual git add
+    mock_run.side_effect = [
+        MagicMock(stdout="M  test.md"),
+        MagicMock(),  # git add test.md
+    ]
+
+    assert git_ops.add_all() is True
+    assert mock_run.call_count == 2
+    # Second call should be git add with single path
+    add_call_args = mock_run.call_args_list[1][0][0]
+    assert add_call_args[0:4] == ["git", "-C", str(repo_path), "add"]
+    assert "test.md" in add_call_args
+
+
+@patch("subprocess.run")
 def test_git_operations_commit_and_push_uses_add_all(mock_run, tmp_path):
     """Test that commit_and_push uses add_all() which filters to .md files."""
     repo_path = tmp_path / "repo"
@@ -348,6 +369,84 @@ def test_git_operations_commit_and_push_add_all_failure(mock_run, tmp_path):
         result = git_ops.commit_and_push("Test commit")
         assert result is False
         mock_print.assert_called_with("Warning: Failed to add files to git")
+
+
+def test_git_operations_commit_and_push_add_all_returns_false(monkeypatch, tmp_path):
+    """commit_and_push prints warning when add_all() returns False."""
+    repo_path = tmp_path / "repo"
+    git_ops = GitOperations(repo_path)
+
+    monkeypatch.setattr(git_ops, "has_lock_files", lambda: False)
+    monkeypatch.setattr(git_ops, "has_changes", lambda: True)
+    monkeypatch.setattr(git_ops, "add_all", lambda: False)
+    monkeypatch.setattr(git_ops, "commit", lambda msg: True)
+    monkeypatch.setattr(git_ops, "push", lambda: True)
+
+    with patch("builtins.print") as mock_print:
+        result = git_ops.commit_and_push("Test commit")
+
+    assert result is False
+    mock_print.assert_any_call("Warning: Failed to add files to git")
+
+
+def test_git_operations_commit_and_push_commit_failure(monkeypatch, tmp_path):
+    """commit_and_push prints warning when commit() fails."""
+    repo_path = tmp_path / "repo"
+    git_ops = GitOperations(repo_path)
+
+    monkeypatch.setattr(git_ops, "has_lock_files", lambda: False)
+    monkeypatch.setattr(git_ops, "has_changes", lambda: True)
+    monkeypatch.setattr(git_ops, "add_all", lambda: True)
+    monkeypatch.setattr(git_ops, "commit", lambda msg: False)
+    monkeypatch.setattr(git_ops, "push", lambda: True)
+
+    with patch("builtins.print") as mock_print:
+        result = git_ops.commit_and_push("Test commit")
+
+    assert result is False
+    mock_print.assert_any_call("Warning: Failed to commit changes")
+
+
+def test_git_operations_commit_and_push_push_failure(monkeypatch, tmp_path):
+    """commit_and_push prints warning when push() fails."""
+    repo_path = tmp_path / "repo"
+    git_ops = GitOperations(repo_path)
+
+    monkeypatch.setattr(git_ops, "has_lock_files", lambda: False)
+    monkeypatch.setattr(git_ops, "has_changes", lambda: True)
+    monkeypatch.setattr(git_ops, "add_all", lambda: True)
+    monkeypatch.setattr(git_ops, "commit", lambda msg: True)
+    monkeypatch.setattr(git_ops, "push", lambda: False)
+
+    with patch("builtins.print") as mock_print:
+        result = git_ops.commit_and_push("Test commit")
+
+    assert result is False
+    mock_print.assert_any_call("Warning: Failed to push changes")
+
+
+def test_git_operations_commit_and_push_unexpected_exception(monkeypatch, tmp_path):
+    """commit_and_push catches unexpected exceptions and returns False."""
+    repo_path = tmp_path / "repo"
+    git_ops = GitOperations(repo_path)
+
+    monkeypatch.setattr(git_ops, "has_lock_files", lambda: False)
+    monkeypatch.setattr(git_ops, "has_changes", lambda: True)
+
+    def boom():
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(git_ops, "add_all", boom)
+    monkeypatch.setattr(git_ops, "commit", lambda msg: True)
+    monkeypatch.setattr(git_ops, "push", lambda: True)
+
+    with patch("builtins.print") as mock_print:
+        result = git_ops.commit_and_push("Test commit")
+
+    assert result is False
+    # Should log unexpected error
+    printed = " ".join(str(call[0][0]) for call in mock_print.call_args_list)
+    assert "Unexpected error during git operations" in printed
 
 
 @patch("subprocess.run")

@@ -247,6 +247,24 @@ def test_log_writer_write_log_file_existing_corrupted(tmp_path):
     assert "# Whats next" in content
 
 
+def test_log_writer_write_log_file_handles_read_error(tmp_path):
+    """When existing file cannot be read (OSError/UnicodeDecodeError), writer starts fresh (lines 41-43)."""
+    file_path = tmp_path / "test.md"
+    file_path.write_text("# What I did\n\n# Whats next\n\n# What Broke or Got Weird\n")
+
+    # Patch Path.read_text at the module level so the writer's read_text call raises
+    with patch("pathlib.Path.read_text", side_effect=OSError("read failed")):
+        log_data = LogData(repos={"repo1": ["- (abc123) Test"]})
+        writer = LogWriter()
+        writer.write_log_file(file_path, log_data)
+
+    # Should have written despite read failure
+    assert file_path.exists()
+    content = file_path.read_text()
+    assert "## repo1" in content
+    assert "- (abc123) Test" in content
+
+
 def test_log_writer_get_log_template():
     """Test getting log template."""
     writer = LogWriter()
