@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from src.cli import setup
+from src.cli import install_precommit_hooks, setup
 
 
 @pytest.fixture
@@ -203,6 +203,44 @@ def test_setup_does_not_change_existing_git_hooks_path(
             if len(call[0][0]) > 3 and call[0][0][2] == "core.hooksPath"
         ]
         assert len(set_calls) == 0, "Should not set hooks path if already correct"
+
+
+def test_install_precommit_hooks_installs_wrappers_and_sets_path(mock_home):
+    """Test that install_precommit_hooks installs wrapper hooks and sets core.hooksPath."""
+    with patch("pathlib.Path.home", return_value=mock_home), patch(
+        "subprocess.run"
+    ) as mock_subprocess:
+        git_hooks_dir = mock_home / ".git-hooks"
+
+        call_count = 0
+
+        def mock_run_side_effect(*args, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                # First call: git config --global core.hooksPath (get)
+                return MagicMock(stdout="", returncode=0, check=False)
+            elif call_count == 2:
+                # Second call: git config --global core.hooksPath <path> (set)
+                assert args[0][-1] == str(git_hooks_dir), (
+                    "Should set hooks path to ~/.git-hooks"
+                )
+                return MagicMock(returncode=0, check=True)
+            return MagicMock(returncode=0)
+
+        mock_subprocess.side_effect = mock_run_side_effect
+
+        install_precommit_hooks()
+
+        # Verify hooks directory and wrapper scripts exist
+        assert git_hooks_dir.exists()
+        for name in ("pre-commit", "commit-msg-precommit", "commit-msg", "pre-push"):
+            hook_path = git_hooks_dir / name
+            assert hook_path.exists(), f"{name} hook should be created"
+            assert os.access(hook_path, os.X_OK), f"{name} hook should be executable"
+
+        # Verify git config was called to set hooks path
+        assert call_count >= 2, "Should call git config at least twice"
 
 
 def test_setup_handles_missing_commit_msg_hook_gracefully(mock_home, mock_src_module):
