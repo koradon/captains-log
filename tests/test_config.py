@@ -70,6 +70,12 @@ def test_config_get_project_config():
     assert default_config.root is None
 
 
+def test_config_post_init_defaults_projects_to_empty():
+    """Config with projects=None initializes to empty dict (line 43)."""
+    config = Config(global_log_repo=None, projects=None)
+    assert config.projects == {}
+
+
 # ConfigLoader tests
 def test_config_loader_load_config_file_exists(tmp_path):
     """Test loading config from existing file."""

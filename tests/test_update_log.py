@@ -371,6 +371,11 @@ def test_full_workflow(tmp_path):
     project_dir.mkdir()
 
     with patch("update_log.CONFIG_FILE", config_file):
+        # Ensure the config loader uses our temporary config file
+        from src.config.config_loader import set_config_path
+
+        set_config_path(config_file)
+
         # Test the full workflow
         config = update_log.load_config()
         project = update_log.find_project(str(project_dir), config)
@@ -488,3 +493,84 @@ def test_update_log_commit_uses_add_all(mock_run, tmp_path):
         call == ["git", "-C", str(log_repo_path), "push"] for call in all_calls
     )
     assert push_found, f"push should have been called. Calls: {all_calls}"
+
+
+def test_load_config_legacy_uses_load_config(monkeypatch):
+    """load_config_legacy delegates to src.config.load_config."""
+
+    called = {}
+
+    def fake_load_config():
+        called["called"] = True
+        return {"ok": True}
+
+    monkeypatch.setattr(update_log, "load_config", fake_load_config)
+
+    cfg = update_log.load_config_legacy()
+    assert cfg == {"ok": True}
+    assert called.get("called") is True
+
+
+def test_main_skips_when_running_from_log_repo(monkeypatch, capsys):
+    """When CommitParser.should_skip_commit is true with valid SHA, prints running-from-log message."""
+
+    class DummyConfig:
+        def __init__(self) -> None:
+            self.global_log_repo = None
+
+    class DummyCommitParser:
+        @staticmethod
+        def should_skip_commit(commit_sha, repo_path, log_repo_path):
+            return True
+
+        @staticmethod
+        def is_valid_commit_sha(commit_sha):
+            return True
+
+    monkeypatch.setattr(update_log, "load_config", lambda: DummyConfig())
+    monkeypatch.setattr(update_log, "CommitParser", DummyCommitParser)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["update_log.py", "repo1", "/tmp/repo1", "abc1234", "Test commit"],
+    )
+
+    update_log.main()
+
+    out = capsys.readouterr().out
+    assert "Skipping log update: Running from within log repository" in out
+
+
+def test_main_handles_exception_and_exits_zero(monkeypatch, capsys):
+    """If an exception occurs, main prints error and exits with code 0."""
+
+    def boom():
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(update_log, "load_config", boom)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["update_log.py", "repo1", "/tmp/repo1", "abc1234", "Test commit"],
+    )
+
+    with pytest.raises(SystemExit) as exc:
+        update_log.main()
+
+    out = capsys.readouterr().out
+    assert "Error updating log: boom" in out
+    assert exc.value.code == 0
+
+
+def test_main_version_flag_prints_version_and_exits(monkeypatch, capsys):
+    """update_log --version prints version and exits with code 0 (uses src package)."""
+    from src import update_log as update_log_src
+
+    monkeypatch.setattr(update_log_src.sys, "argv", ["update_log", "--version"])
+
+    with pytest.raises(SystemExit) as exc:
+        update_log_src.main()
+
+    out = capsys.readouterr().out
+    assert "Captain's Log (update_log) v" in out
+    assert exc.value.code == 0
