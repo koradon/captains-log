@@ -19,19 +19,22 @@ cp commit-msg "$CAPT_LOG_DIR/"
 # Copy commit-msg hook to git hooks directory (this is where git will look for it)
 cp commit-msg "$GIT_HOOKS_DIR/commit-msg"
 
-# Copy btw and wtf wrapper scripts for global access
-echo "Installing btw and wtf commands..."
+# Copy btw, wtf and wnext wrapper scripts for global access
+echo "Installing btw, wtf and wnext commands..."
 cp btw "$CAPT_LOG_DIR/"
 cp wtf "$CAPT_LOG_DIR/"
+cp wnext "$CAPT_LOG_DIR/"
 
 # Make executables
 chmod +x "$CAPT_LOG_DIR/src/update_log.py"
 chmod +x "$CAPT_LOG_DIR/src/btw.py"
 chmod +x "$CAPT_LOG_DIR/src/wtf.py"
+chmod +x "$CAPT_LOG_DIR/src/wnext.py"
 chmod +x "$CAPT_LOG_DIR/commit-msg"
 chmod +x "$GIT_HOOKS_DIR/commit-msg"
 chmod +x "$CAPT_LOG_DIR/btw"
 chmod +x "$CAPT_LOG_DIR/wtf"
+chmod +x "$CAPT_LOG_DIR/wnext"
 
 # Create basic config.yml if not exist
 if [ ! -f "$CONFIG_FILE" ]; then
@@ -77,7 +80,7 @@ echo ""
 LOCAL_BIN_DIR="$HOME/.local/bin"
 mkdir -p "$LOCAL_BIN_DIR"
 
-# Create symlinks for btw and wtf commands
+# Create symlinks for btw, wtf and wnext commands
 if [ ! -L "$LOCAL_BIN_DIR/btw" ]; then
   echo "Creating symlink for btw command in $LOCAL_BIN_DIR..."
   ln -sf "$CAPT_LOG_DIR/btw" "$LOCAL_BIN_DIR/btw"
@@ -90,6 +93,13 @@ if [ ! -L "$LOCAL_BIN_DIR/wtf" ]; then
   ln -sf "$CAPT_LOG_DIR/wtf" "$LOCAL_BIN_DIR/wtf"
 else
   echo "wtf command already linked."
+fi
+
+if [ ! -L "$LOCAL_BIN_DIR/wnext" ]; then
+  echo "Creating symlink for wnext command in $LOCAL_BIN_DIR..."
+  ln -sf "$CAPT_LOG_DIR/wnext" "$LOCAL_BIN_DIR/wnext"
+else
+  echo "wnext command already linked."
 fi
 
 # Check if ~/.local/bin is in PATH
@@ -111,3 +121,4 @@ echo ""
 echo "New features:"
 echo "  - Use 'btw \"your note\"' to add manual entries to your daily log!"
 echo "  - Use 'wtf \"what broke\"' to add entries to the 'What Broke or Got Weird' section!"
+echo "  - Use 'wnext \"what next\"' to add entries to the 'Whats next' section!"
