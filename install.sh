@@ -19,22 +19,25 @@ cp commit-msg "$CAPT_LOG_DIR/"
 # Copy commit-msg hook to git hooks directory (this is where git will look for it)
 cp commit-msg "$GIT_HOOKS_DIR/commit-msg"
 
-# Copy btw, wtf and wnext wrapper scripts for global access
-echo "Installing btw, wtf and wnext commands..."
+# Copy btw, wtf, wnext and stone wrapper scripts for global access
+echo "Installing btw, wtf, wnext and stone commands..."
 cp btw "$CAPT_LOG_DIR/"
 cp wtf "$CAPT_LOG_DIR/"
 cp wnext "$CAPT_LOG_DIR/"
+cp stone "$CAPT_LOG_DIR/"
 
 # Make executables
 chmod +x "$CAPT_LOG_DIR/src/update_log.py"
 chmod +x "$CAPT_LOG_DIR/src/btw.py"
 chmod +x "$CAPT_LOG_DIR/src/wtf.py"
 chmod +x "$CAPT_LOG_DIR/src/wnext.py"
+chmod +x "$CAPT_LOG_DIR/src/stone.py"
 chmod +x "$CAPT_LOG_DIR/commit-msg"
 chmod +x "$GIT_HOOKS_DIR/commit-msg"
 chmod +x "$CAPT_LOG_DIR/btw"
 chmod +x "$CAPT_LOG_DIR/wtf"
 chmod +x "$CAPT_LOG_DIR/wnext"
+chmod +x "$CAPT_LOG_DIR/stone"
 
 # Create basic config.yml if not exist
 if [ ! -f "$CONFIG_FILE" ]; then
@@ -102,6 +105,13 @@ else
   echo "wnext command already linked."
 fi
 
+if [ ! -L "$LOCAL_BIN_DIR/stone" ]; then
+  echo "Creating symlink for stone command in $LOCAL_BIN_DIR..."
+  ln -sf "$CAPT_LOG_DIR/stone" "$LOCAL_BIN_DIR/stone"
+else
+  echo "stone command already linked."
+fi
+
 # Check if ~/.local/bin is in PATH
 if [[ ":$PATH:" != *":$LOCAL_BIN_DIR:"* ]]; then
   echo ""
@@ -122,3 +132,4 @@ echo "New features:"
 echo "  - Use 'btw \"your note\"' to add manual entries to your daily log!"
 echo "  - Use 'wtf \"what broke\"' to add entries to the 'What Broke or Got Weird' section!"
 echo "  - Use 'wnext \"what next\"' to add entries to the 'Whats next' section!"
+echo "  - Use 'stone \"milestone\"' to add entries to yearly milestone files!"
