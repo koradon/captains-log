@@ -54,6 +54,18 @@ def test_log_data_has_repo():
     assert log_data.has_repo("nonexistent") is False
 
 
+def test_log_data_what_next_helpers():
+    """Test helper methods for 'Whats next' data."""
+    log_data = LogData()
+
+    assert log_data.get_what_next_entries("project") == []
+
+    entries = ["- Do something next"]
+    log_data.set_what_next_entries("project", entries)
+
+    assert log_data.get_what_next_entries("project") == entries
+
+
 # LogFileInfo tests
 def test_log_file_info_properties(tmp_path):
     """Test LogFileInfo properties."""
@@ -148,6 +160,34 @@ def test_log_parser_parse_log_content():
 
     log_data = LogParser.parse_log_content(content)
     assert log_data.repos == {"test-repo": ["- (abc123) Test commit"]}
+
+
+def test_log_parser_parses_what_next_section(tmp_path):
+    """Test parsing of the 'Whats next' section with subsections."""
+    content = """# What I did
+
+## repo1
+- (abc123) First commit
+
+# Whats next
+
+## my-project
+- Plan next sprint
+
+## other
+- Remember to refactor auth
+
+# What Broke or Got Weird
+"""
+    file_path = tmp_path / "test_next.md"
+    file_path.write_text(content)
+
+    log_data = LogParser.parse_log_file(file_path)
+
+    assert log_data.what_next == {
+        "my-project": ["- Plan next sprint"],
+        "other": ["- Remember to refactor auth"],
+    }
 
 
 # LogWriter tests

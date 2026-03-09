@@ -10,6 +10,7 @@ class Section(Enum):
     """Log file sections with their headers."""
 
     WHAT_I_DID = "What I did"
+    WHAT_NEXT = "Whats next"
     WHAT_BROKE = "What Broke or Got Weird"
 
 
@@ -50,8 +51,10 @@ class LogParser:
         lines = content.splitlines()
         repos = {}
         what_broke = []
+        what_next = {}
         current_section = None
         current_repo = None
+        current_next_section = None
 
         for line in lines:
             line_stripped = line.strip()
@@ -62,19 +65,26 @@ class LogParser:
                     current_section = Section.WHAT_BROKE
                 elif Section.WHAT_I_DID.value in line_stripped:
                     current_section = Section.WHAT_I_DID
+                elif Section.WHAT_NEXT.value in line_stripped:
+                    current_section = Section.WHAT_NEXT
                 else:
                     current_section = None  # Other sections, ignore
                 current_repo = None
+                current_next_section = None
                 continue
 
-            # Handle repository headers (## repo-name)
-            if (
-                line_stripped.startswith("## ")
-                and current_section == Section.WHAT_I_DID
-            ):
-                current_repo = line_stripped[3:].strip()
-                if current_repo:
-                    repos[current_repo] = []
+            # Handle subsection headers (## section-name)
+            if line_stripped.startswith("## "):
+                subsection = line_stripped[3:].strip()
+                if not subsection:
+                    continue
+
+                if current_section == Section.WHAT_I_DID:
+                    current_repo = subsection
+                    repos.setdefault(current_repo, [])
+                elif current_section == Section.WHAT_NEXT:
+                    current_next_section = subsection
+                    what_next.setdefault(current_next_section, [])
                 continue
 
             # Handle entry lines (- entry text)
@@ -83,5 +93,7 @@ class LogParser:
                     what_broke.append(line_stripped)
                 elif current_section == Section.WHAT_I_DID and current_repo:
                     repos[current_repo].append(line_stripped)
+                elif current_section == Section.WHAT_NEXT and current_next_section:
+                    what_next[current_next_section].append(line_stripped)
 
-        return LogData(repos=repos, what_broke=what_broke)
+        return LogData(repos=repos, what_broke=what_broke, what_next=what_next)

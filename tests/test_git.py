@@ -404,6 +404,31 @@ def test_git_operations_add_all_includes_directories_with_md_files(mock_run, tmp
 
 
 @patch("subprocess.run")
+def test_git_operations_add_all_parses_porcelain_paths_correctly(mock_run, tmp_path):
+    """Test that add_all correctly parses status lines with leading space."""
+    repo_path = tmp_path / "repo"
+    repo_path.mkdir()
+    git_ops = GitOperations(repo_path)
+
+    # Simulate typical porcelain output with leading space before path
+    mock_run.side_effect = [
+        MagicMock(stdout=" M captains-log/2026.03.09.md\n"),  # status
+        MagicMock(),  # git add captains-log captains-log/2026.03.09.md (batch)
+    ]
+
+    assert git_ops.add_all() is True
+    assert mock_run.call_count == 2
+
+    # Second call should be the git add batch command
+    add_call_args = mock_run.call_args_list[1][0][0]
+    # Expect: ["git", "-C", repo_path, "add", "captains-log", "captains-log/2026.03.09.md"]
+    assert add_call_args[0:4] == ["git", "-C", str(repo_path), "add"]
+    # Ensure the full directory name is preserved (no missing leading 'c')
+    assert "captains-log" in add_call_args
+    assert "captains-log/2026.03.09.md" in add_call_args
+
+
+@patch("subprocess.run")
 def test_git_operations_add_all_handles_file_moves(mock_run, tmp_path):
     """Test that add_all handles file moves (renames) correctly."""
     repo_path = tmp_path / "repo"

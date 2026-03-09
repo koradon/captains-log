@@ -101,11 +101,14 @@ class GitOperations:
                 if not line.strip():
                     continue
 
-                # Git status format: XY filename
-                # X = index status, Y = working tree status
-                # Common values: M=modified, A=added, D=deleted, ??=untracked, R=renamed
-                status = line[:2]
-                file_path = line[3:].strip()
+                # Git status porcelain format: XY <path>
+                # X = index status, Y = working tree status (e.g. " M", "M ", "A ", "??", "R ").
+                # Strip leading/trailing whitespace and split once to get status and path.
+                parts = line.strip().split(maxsplit=1)
+                if len(parts) != 2:
+                    continue
+                status, file_path = parts
+                file_path = file_path.strip()
 
                 # Handle renamed files (format: "R  old -> new")
                 if "R" in status:
@@ -174,20 +177,34 @@ class GitOperations:
                     if cmd_length > MAX_ARGS_LENGTH or len(batch) == 1:
                         # Add individually if batch would be too long or only one file
                         for path in batch:
+                            try:
+                                subprocess.run(
+                                    ["git", "-C", str(self.repo_path), "add", path],
+                                    check=True,
+                                    capture_output=True,
+                                    text=True,
+                                )
+                            except subprocess.CalledProcessError as e:
+                                print(
+                                    f"Error: git add failed for {path}: {e.stderr or e}"
+                                )
+                                raise
+                    else:
+                        # Batch add multiple files at once
+                        try:
                             subprocess.run(
-                                ["git", "-C", str(self.repo_path), "add", path],
+                                ["git", "-C", str(self.repo_path), "add"] + batch,
                                 check=True,
                                 capture_output=True,
                                 text=True,
                             )
-                    else:
-                        # Batch add multiple files at once
-                        subprocess.run(
-                            ["git", "-C", str(self.repo_path), "add"] + batch,
-                            check=True,
-                            capture_output=True,
-                            text=True,
-                        )
+                        except subprocess.CalledProcessError as e:
+                            joined_paths = " ".join(batch)
+                            print(
+                                "Error: git add failed for batch "
+                                f"({joined_paths}): {e.stderr or e}"
+                            )
+                            raise
 
             return True
         except subprocess.CalledProcessError:

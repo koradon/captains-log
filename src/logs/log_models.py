@@ -12,6 +12,9 @@ class LogData:
 
     repos: Dict[str, List[str]] = field(default_factory=dict)
     what_broke: List[str] = field(default_factory=list)
+    # Entries for the "# Whats next" section, organized by subsection name
+    # (for example: project name or "other").
+    what_next: Dict[str, List[str]] = field(default_factory=dict)
 
     def get_repo_entries(self, repo_name: str) -> List[str]:
         """Get entries for a specific repository."""
@@ -39,6 +42,14 @@ class LogData:
         """Add an entry to the 'What Broke or Got Weird' section."""
         if entry not in self.what_broke:
             self.what_broke.append(entry)
+
+    def get_what_next_entries(self, section: str) -> List[str]:
+        """Get entries for a specific 'Whats next' subsection."""
+        return self.what_next.get(section, [])
+
+    def set_what_next_entries(self, section: str, entries: List[str]):
+        """Set entries for a specific 'Whats next' subsection."""
+        self.what_next[section] = entries
 
 
 @dataclass
