@@ -71,8 +71,34 @@ class LogWriter:
             else:
                 new_content += "\n"
 
-            # Add the "Whats next" section
-            new_content += "# Whats next\n\n\n"
+            # Add the "Whats next" section with optional subsections
+            new_content += "# Whats next\n"
+
+            if log_data.what_next:
+                new_content += "\n"
+
+                # Custom sorting with 'other' at the end
+                what_next_sections = dict(log_data.what_next)
+                other_entries = what_next_sections.pop("other", None)
+                sorted_sections = sorted(
+                    what_next_sections.items(), key=lambda x: x[0].lower()
+                )
+
+                for section_name, entries in sorted_sections:
+                    if not entries:
+                        continue
+                    new_content += f"## {section_name}\n"
+                    for entry in entries:
+                        new_content += entry + "\n"
+                    new_content += "\n"
+
+                if other_entries:
+                    new_content += "## other\n"
+                    for entry in other_entries:
+                        new_content += entry + "\n"
+                    new_content += "\n"
+            else:
+                new_content += "\n\n"
 
             # Add the "What Broke or Got Weird" section with flat list
             new_content += "# What Broke or Got Weird\n"

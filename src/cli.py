@@ -121,6 +121,7 @@ projects:
     print("Available commands:")
     print("  btw 'your note'              - Add manual log entries")
     print("  wtf 'what broke'             - Add entries to 'What Broke' section")
+    print("  wnext 'what next'            - Add entries to 'Whats next' section")
     print("  captains-log --version       - Show version")
     print("  captains-log setup           - Run setup again")
     print()
