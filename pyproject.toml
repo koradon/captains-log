@@ -21,6 +21,7 @@ btw = "src.btw:main"
 wtf = "src.wtf:main"
 captains-log = "src.cli:main"
 wnext = "src.wnext:main"
+stone = "src.stone:main"
 
 [tool.hatch.version]
 source = "vcs"

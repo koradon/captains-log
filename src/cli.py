@@ -122,6 +122,7 @@ projects:
     print("  btw 'your note'              - Add manual log entries")
     print("  wtf 'what broke'             - Add entries to 'What Broke' section")
     print("  wnext 'what next'            - Add entries to 'Whats next' section")
+    print("  stone 'milestone'            - Add entries to yearly milestones file")
     print("  captains-log --version       - Show version")
     print("  captains-log setup           - Run setup again")
     print()
@@ -254,6 +255,9 @@ def main():
         print("After setup, use these commands:")
         print("  btw 'your note'              - Add manual log entries")
         print("  wtf 'what broke'             - Add issue entries")
+        print("  wnext 'what next'            - Add entries to 'Whats next' section")
+        print("  stone 'milestone'            - Add entries to yearly milestones file")
+        print()
         sys.exit(0)
 
     command = sys.argv[1]
