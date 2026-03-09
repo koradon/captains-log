@@ -77,6 +77,37 @@ def update_version(new_version: str) -> None:
     print(f"✓ Updated version in pyproject.toml to {new_version}")
 
 
+def update_generated_version_files(new_version: str) -> None:
+    """Update auxiliary version-related files using tools.
+
+    Currently this keeps the following in sync:
+    - src/_version.py  (via the hatch-vcs build hook)
+    - uv.lock          (via `uv lock`)
+    """
+    # Regenerate src/_version.py using the build backend (hatch-vcs hook)
+    # so we don't edit this generated file by hand.
+    if Path("src/_version.py").exists():
+        try:
+            subprocess.run(
+                [sys.executable, "-m", "build", "--sdist", "--wheel"],
+                check=True,
+            )
+            print("✓ Regenerated src/_version.py via build backend")
+        except (subprocess.CalledProcessError, FileNotFoundError) as exc:
+            print(f"⚠ Could not regenerate src/_version.py automatically: {exc}")
+            print("  You can run `python -m build --sdist --wheel` manually if needed.")
+
+    # Refresh uv.lock so the local package entry matches the new version
+    lockfile = Path("uv.lock")
+    if lockfile.exists():
+        try:
+            subprocess.run(["uv", "lock"], check=True)
+            print("✓ Regenerated uv.lock with new version")
+        except (subprocess.CalledProcessError, FileNotFoundError) as exc:
+            print(f"⚠ Could not update uv.lock automatically: {exc}")
+            print("  You can run `uv lock` manually later if needed.")
+
+
 def get_last_tag() -> str | None:
     """Get the latest semantic version tag (vX.Y.Z) by version, not history."""
 
@@ -176,8 +207,13 @@ def create_tag_and_commit(new_version: str, changelog: str) -> None:
         print(f"Error: Tag {tag_name} already exists")
         sys.exit(1)
 
-    # Stage pyproject.toml
-    subprocess.run(["git", "add", "pyproject.toml"], check=True)
+    # Stage versioned files
+    files_to_add = ["pyproject.toml"]
+    if Path("src/_version.py").exists():
+        files_to_add.append("src/_version.py")
+    if Path("uv.lock").exists():
+        files_to_add.append("uv.lock")
+    subprocess.run(["git", "add", *files_to_add], check=True)
 
     # Create commit
     commit_message = f"Bump version to {new_version}\n\n{changelog}"
@@ -281,6 +317,7 @@ def main() -> None:
 
     # Update version
     update_version(new_version)
+    update_generated_version_files(new_version)
 
     # Create commit and tag
     create_tag_and_commit(new_version, changelog)
