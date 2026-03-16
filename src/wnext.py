@@ -27,7 +27,7 @@ def add_what_next_entry(entry_text: str, project_name: Optional[str], use_other:
     project_finder = ProjectFinder(config)
     cwd = Path.cwd()
 
-    # Determine target project
+    # Determine target project (for choosing the log location)
     if project_name is not None:
         project = project_finder.get_project_by_name(project_name)
         if project is None:
@@ -42,8 +42,40 @@ def add_what_next_entry(entry_text: str, project_name: Optional[str], use_other:
     # Load existing log data
     log_data = log_manager.load_log(log_info)
 
-    # Determine subsection name within "Whats next"
-    section_name = "other" if use_other else project.name
+    # Determine subsection name within "Whats next".
+    # For commits, the "What I did" section uses the repository name passed
+    # from the git hook (e.g. order-service) even when the project (and thus
+    # log file location) corresponds to a parent mono-repo (e.g. lulu).
+    #
+    # We mirror that behaviour here by:
+    # - Keeping the project (and log file) resolution based on configuration
+    #   via ProjectFinder (so entries still go under the lulu project logs).
+    # - Using the git repository name, when available, as the default section
+    #   name within "Whats next" so that nested repos like order-service get
+    #   their own subsection under the parent project log.
+
+    def _find_git_root(path: Path) -> Optional[Path]:
+        current = path
+        while True:
+            if (current / ".git").is_dir():
+                return current
+
+            parent = current.parent
+            if parent == current:
+                return None
+            current = parent
+
+    git_root = _find_git_root(cwd)
+    default_section = git_root.name if git_root is not None else project.name
+
+    if use_other:
+        section_name = "other"
+    elif project_name is not None:
+        # When the user explicitly selects a project, keep the traditional
+        # behaviour of using that project name as the subsection.
+        section_name = project.name
+    else:
+        section_name = default_section
 
     entry_processor = EntryProcessor()
 

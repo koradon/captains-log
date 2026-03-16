@@ -208,6 +208,22 @@ def test_add_what_next_entry_adds_and_commits(tmp_path, monkeypatch, capsys):
         def commit_and_push(self, message: str):
             recorded["git_message"] = message
 
+    # Simulate running inside a nested git repository so that the default
+    # subsection name is derived from the git root directory name rather than
+    # the project name. The project itself (and thus log location) still
+    # corresponds to the parent configuration (DummyProject).
+    git_root = tmp_path / "parent-app" / "nested-service"
+    git_root.mkdir(parents=True)
+    (git_root / ".git").mkdir()
+
+    class DummyPath:
+        """Provide a deterministic cwd for Path.cwd() used inside wnext."""
+
+        @staticmethod
+        def cwd():
+            return git_root
+
+    monkeypatch.setattr(wnext, "Path", DummyPath)
     monkeypatch.setattr(wnext, "load_config", lambda: DummyConfig())
     monkeypatch.setattr(wnext, "ProjectFinder", DummyProjectFinder)
     monkeypatch.setattr(wnext, "LogManager", DummyLogManager)
@@ -225,7 +241,9 @@ def test_add_what_next_entry_adds_and_commits(tmp_path, monkeypatch, capsys):
         recorded.get("git_message")
         == "Add What Next entry to test-project logs for 2026-03-10"
     )
-    assert recorded.get("set_entries")[0] == "test-project"
+    # Section name should be derived from the git root directory name, so
+    # entries go under "nested-service" within the parent project's log.
+    assert recorded.get("set_entries")[0] == "nested-service"
     assert "- Do something" in recorded.get("set_entries")[1]
 
 
