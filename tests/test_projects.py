@@ -72,6 +72,38 @@ def test_project_finder_find_project_none_root():
     assert project.name == "repo"
 
 
+def test_project_finder_prefers_nested_git_repo_over_parent_config(
+    tmp_path, monkeypatch
+):
+    """Nested git repositories should be treated as their own projects.
+
+    Given a config that declares a parent project rooted at /repos/parent-app and a
+    nested git repository at /repos/parent-app/services/child-service, asking the
+    finder for a project inside the nested repo should yield a project named
+    'child-service' instead of 'parent-app'.
+    """
+    # Simulate the directory structure
+    parent_root = tmp_path / "parent-app"
+    service_root = parent_root / "services" / "child-service"
+    git_dir = service_root / ".git"
+    git_dir.mkdir(parents=True)
+
+    # Configure only the parent project (like a mono-repo root)
+    config = Config.from_dict({"projects": {"parent-app": str(parent_root)}})
+
+    finder = ProjectFinder(config)
+
+    # Path inside the nested git repo
+    cwd_inside_service = service_root / "src"
+    cwd_inside_service.mkdir(parents=True)
+
+    project = finder.find_project(str(cwd_inside_service))
+
+    # The nested git repo should be treated as its own project
+    assert project.name == "child-service"
+    assert project.config.root == service_root.resolve()
+
+
 def test_project_finder_get_project_by_name_exists():
     """Test getting project by name when it exists."""
     config = Config.from_dict({"projects": {"test-project": "/tmp/test"}})
