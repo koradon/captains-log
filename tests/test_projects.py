@@ -104,6 +104,99 @@ def test_project_finder_prefers_nested_git_repo_over_parent_config(
     assert project.config.root == service_root.resolve()
 
 
+def test_project_finder_uses_config_for_explicit_child_repo(tmp_path):
+    """When a child service repo is explicitly configured, it should win."""
+    parent_root = tmp_path / "parent-app"
+    parent_root.mkdir()
+    service_root = parent_root / "services" / "child-service"
+    (service_root / ".git").mkdir(parents=True)
+
+    config = Config.from_dict(
+        {
+            "projects": {
+                "parent-app": str(parent_root),
+                "child-service": str(service_root),
+            }
+        }
+    )
+
+    finder = ProjectFinder(config)
+    cwd_inside_service = service_root / "src"
+    cwd_inside_service.mkdir(parents=True)
+
+    project = finder.find_project(str(cwd_inside_service))
+
+    assert project.name == "child-service"
+    assert project.config.root == service_root.resolve()
+
+
+def test_project_finder_uses_parent_config_outside_nested_git_repo(tmp_path):
+    """Paths outside a nested git repo still map to the parent project."""
+    parent_root = tmp_path / "parent-app"
+    docs_dir = parent_root / "docs"
+    docs_dir.mkdir(parents=True)
+
+    # Nested git repo that should not affect paths outside it
+    service_root = parent_root / "services" / "child-service"
+    (service_root / ".git").mkdir(parents=True)
+
+    config = Config.from_dict({"projects": {"parent-app": str(parent_root)}})
+
+    finder = ProjectFinder(config)
+    project = finder.find_project(str(docs_dir))
+
+    assert project.name == "parent-app"
+    assert project.config.root == parent_root.resolve()
+
+
+def test_project_finder_exact_match_with_git_root(tmp_path):
+    """When git root equals a configured root, that project is used."""
+    repo_root = tmp_path / "parent-app"
+    (repo_root / ".git").mkdir(parents=True)
+    src_dir = repo_root / "src"
+    src_dir.mkdir(parents=True)
+
+    config = Config.from_dict({"projects": {"parent-app": str(repo_root)}})
+
+    finder = ProjectFinder(config)
+    project = finder.find_project(str(src_dir))
+
+    assert project.name == "parent-app"
+    assert project.config.root == repo_root.resolve()
+    assert project.base_dir == repo_root.resolve()
+
+
+def test_project_finder_no_git_repo_keeps_ancestor_matching(tmp_path):
+    """Without any git repo, behaviour falls back to ancestor-based matching."""
+    parent_root = tmp_path / "parent-app"
+    sub_dir = parent_root / "subdir"
+    sub_dir.mkdir(parents=True)
+
+    config = Config.from_dict({"projects": {"parent-app": str(parent_root)}})
+
+    finder = ProjectFinder(config)
+    project = finder.find_project(str(sub_dir))
+
+    assert project.name == "parent-app"
+    assert project.config.root == parent_root.resolve()
+
+
+def test_project_finder_fallback_uses_git_root_name_when_unconfigured(tmp_path):
+    """When inside an unconfigured git repo, its directory name becomes the project."""
+    git_root = tmp_path / "standalone-service"
+    src_dir = git_root / "src"
+    src_dir.mkdir(parents=True)
+    (git_root / ".git").mkdir(parents=True)
+
+    config = Config.from_dict({"projects": {}})
+
+    finder = ProjectFinder(config)
+    project = finder.find_project(str(src_dir))
+
+    assert project.name == "standalone-service"
+    assert project.config.root == git_root.resolve()
+
+
 def test_project_finder_get_project_by_name_exists():
     """Test getting project by name when it exists."""
     config = Config.from_dict({"projects": {"test-project": "/tmp/test"}})
