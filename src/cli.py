@@ -5,12 +5,42 @@ Captain's Log CLI - Main command-line interface
 Provides setup and configuration commands for Captain's Log.
 """
 
-import shutil
 import subprocess
 import sys
 from pathlib import Path
 
 from . import __version__
+
+
+def _render_commit_msg_hook(python_executable: str) -> str:
+    """Render commit-msg hook content using a specific Python interpreter.
+
+    This avoids relying on `python3` from PATH (which may not have the
+    package installed, e.g. when `git-captains-log` is installed via pipx).
+    """
+    # Use bash for compatibility with existing hook and common shells.
+    py = python_executable.replace('"', '\\"')
+    return f"""#!/bin/bash
+
+# Exit on any error
+set -e
+
+# Get repository information
+REPO_NAME=$(basename "$(git rev-parse --show-toplevel)")
+REPO_PATH=$(git rev-parse --show-toplevel)
+COMMIT_MSG=$(head -n1 "$1")
+
+# Get commit SHA (handle both pre-commit and post-commit scenarios)
+COMMIT_SHA=$(git rev-parse --verify HEAD 2>/dev/null || echo "no-sha")
+
+# Run the update script using the installed package
+export GIT_HOOK=1
+if ! "{py}" -m src.update_log "$REPO_NAME" "$REPO_PATH" "$COMMIT_SHA" "$COMMIT_MSG"; then
+    echo "Warning: Captain's Log update failed, but commit will continue"
+    echo "Check the script output above for errors"
+    exit 0  # Don't fail the commit
+fi
+"""
 
 
 def print_version():
@@ -42,7 +72,7 @@ def setup():
         print("  pip install git-captains-log")
         sys.exit(1)
 
-    # Copy commit-msg hook
+    # Install commit-msg hook
     print("Installing Git commit-msg hook...")
 
     # Look for commit-msg-package (for package installations) first
@@ -57,9 +87,13 @@ def setup():
         # Final fallback
         commit_msg_source = Path(__file__).parent.parent / "commit-msg"
 
+    commit_msg_dest = git_hooks_dir / "commit-msg"
     if commit_msg_source.exists():
-        commit_msg_dest = git_hooks_dir / "commit-msg"
-        shutil.copy2(commit_msg_source, commit_msg_dest)
+        # Even if we have a hook template file, prefer generating a hook that
+        # uses the current interpreter. This matters for pipx installs where
+        # `python3` from PATH may not have `git-captains-log` installed.
+        hook_content = _render_commit_msg_hook(sys.executable)
+        commit_msg_dest.write_text(hook_content, encoding="utf-8")
         commit_msg_dest.chmod(0o755)
         print(f"  ✓ Installed commit-msg hook to {commit_msg_dest}")
     else:
@@ -166,28 +200,33 @@ fi
 exit 0
 """
 
-    captains_log = """#!/usr/bin/env sh
+    python_executable = sys.executable.replace('"', '\\"')
+
+    captains_log = f"""#!/usr/bin/env sh
 
 # Captain's Log commit-msg dispatcher
 # Behavior:
 # - If commit-msg-precommit exists: run pre-commit first
-# - Always run Captain's Log hook afterwards
+# - Always run Captain's Log hook afterwards using the current interpreter
 
 set -eu
 
 HOOKS_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 PRECOMMIT_WRAPPER="$HOOKS_DIR/commit-msg-precommit"
-CAPTAINS_LOG_HOOK="$HOME/.captains-log/commit-msg"
 
 # 1) Run pre-commit wrapper if present
 if [ -x "$PRECOMMIT_WRAPPER" ]; then
   "$PRECOMMIT_WRAPPER" "$@"
 fi
 
-# 2) Run the original Captain's Log hook
-if [ -x "$CAPTAINS_LOG_HOOK" ]; then
-  exec "$CAPTAINS_LOG_HOOK" "$@"
-fi
+# 2) Run Captain's Log update via installed package
+REPO_NAME=$(basename "$(git rev-parse --show-toplevel)")
+REPO_PATH=$(git rev-parse --show-toplevel)
+COMMIT_MSG=$(head -n1 "$1")
+COMMIT_SHA=$(git rev-parse --verify HEAD 2>/dev/null || echo "no-sha")
+
+export GIT_HOOK=1
+exec "{python_executable}" -m src.update_log "$REPO_NAME" "$REPO_PATH" "$COMMIT_SHA" "$COMMIT_MSG"
 
 exit 0
 """

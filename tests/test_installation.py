@@ -110,7 +110,7 @@ def test_setup_does_not_overwrite_existing_config(
 
 
 def test_setup_installs_commit_msg_hook(mock_home, mock_src_module):
-    """Test that setup copies commit-msg hook to ~/.git-hooks."""
+    """Test that setup installs commit-msg hook to ~/.git-hooks."""
     mock_src, package_root = mock_src_module
 
     # Create commit-msg-package hook
@@ -130,8 +130,9 @@ def test_setup_installs_commit_msg_hook(mock_home, mock_src_module):
         assert commit_msg_dest.exists(), "commit-msg hook should be installed"
         assert commit_msg_dest.is_file(), "commit-msg should be a file"
         assert os.access(commit_msg_dest, os.X_OK), "commit-msg should be executable"
-        # Verify hook content was copied
-        assert commit_msg_dest.read_text() == commit_msg_source.read_text()
+        # Verify hook content runs update_log module
+        content = commit_msg_dest.read_text(encoding="utf-8")
+        assert "src.update_log" in content
 
 
 def test_setup_sets_git_hooks_path(mock_home, mock_git_config, mock_src_module):
