@@ -232,6 +232,25 @@ def test_main_calls_add_wtf_entry(monkeypatch):
     assert recorded["text"] == "Something broke"
 
 
+def test_main_calls_add_wtf_entry_with_log_level(monkeypatch):
+    """wtf supports global --log-level and still parses message."""
+    import src.wtf as wtf
+
+    recorded: dict[str, str] = {}
+
+    def fake_add_wtf_entry(text: str) -> None:
+        recorded["text"] = text
+
+    monkeypatch.setattr(wtf, "add_wtf_entry", fake_add_wtf_entry)
+    monkeypatch.setattr(
+        wtf.sys, "argv", ["wtf", "--log-level=verbose", "Something", "broke"]
+    )
+
+    wtf.main()
+
+    assert recorded["text"] == "Something broke"
+
+
 def test_main_handles_add_wtf_entry_error(monkeypatch, capsys):
     """If add_wtf_entry raises, main prints error and exits with code 1."""
     import src.wtf as wtf

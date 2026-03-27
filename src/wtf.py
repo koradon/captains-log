@@ -11,6 +11,7 @@ from datetime import date
 from pathlib import Path
 
 # Domain imports
+from src import cli_logging
 from src.config import load_config
 from src.entries import EntryProcessor
 from src.git import GitOperations
@@ -62,36 +63,48 @@ def add_wtf_entry(entry_text: str):
             )
             git_ops.commit_and_push(commit_message)
 
-        print(f"Added WTF entry to {project.name} log: {entry_text}")
+        cli_logging.success(f"Added WTF entry to {project.name} log: {entry_text}")
     else:
-        print(f"Entry already exists in {project.name} log: {entry_text}")
+        cli_logging.warning(f"Entry already exists in {project.name} log: {entry_text}")
 
 
 def main():
     """Main entry point for the wtf script."""
+    try:
+        args, log_level = cli_logging.split_log_level_args(sys.argv[1:])
+    except ValueError as exc:
+        cli_logging.error(str(exc))
+        sys.exit(1)
+    cli_logging.configure_log_level(log_level)
+
     # Check for version flag
-    if len(sys.argv) > 1 and sys.argv[1] in ("--version", "-v"):
+    if len(args) > 0 and args[0] in ("--version", "-v"):
         from . import __version__
 
         print(f"Captain's Log (wtf) v{__version__}")
         sys.exit(0)
 
-    if len(sys.argv) < 2:
+    if len(args) < 1:
         print('Usage: wtf "What broke or got weird"')
+        print('       wtf --log-level debug "What broke or got weird"')
         print('Example: wtf "API endpoint started returning 500 errors"')
         sys.exit(1)
 
     # Join all arguments to allow for entries without quotes
-    entry_text = " ".join(sys.argv[1:])
+    entry_text = " ".join(args)
 
     if not entry_text.strip():
         print("Error: Entry text cannot be empty")
         sys.exit(1)
 
     try:
+        cli_logging.verbose("Processing WTF entry update...")
         add_wtf_entry(entry_text)
     except Exception as e:
-        print(f"Error adding entry: {e}")
+        cli_logging.error(f"Error adding entry: {e}")
+        cli_logging.debug(
+            f"Debug context: cwd={Path.cwd()}, log_level={cli_logging.get_log_level()}"
+        )
         sys.exit(1)
 
 

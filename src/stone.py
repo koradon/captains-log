@@ -16,6 +16,7 @@ import sys
 from datetime import date
 from pathlib import Path
 
+from src import cli_logging
 from src.config import Config, load_config
 from src.git import GitOperations
 from src.logs.log_manager import LogManager
@@ -126,27 +127,40 @@ def add_milestone_entry(entry_text: str) -> None:
 
 def main() -> None:
     """Main entry point for the stone script."""
+    try:
+        args, log_level = cli_logging.split_log_level_args(sys.argv[1:])
+    except ValueError as exc:
+        cli_logging.error(str(exc))
+        raise SystemExit(1) from exc
+    cli_logging.configure_log_level(log_level)
+
     # Version flag
-    if len(sys.argv) > 1 and sys.argv[1] in ("--version", "-v"):
+    if len(args) > 0 and args[0] in ("--version", "-v"):
         from . import __version__
 
         print(f"Captain's Log (stone) v{__version__}")
         raise SystemExit(0)
 
-    if len(sys.argv) < 2:
+    if len(args) < 1:
         print('Usage: stone "Describe the milestone"')
+        print('       stone --log-level debug "Describe the milestone"')
         print('Example: stone "Shipped v1.0 of the product"')
         raise SystemExit(1)
 
-    entry_text = " ".join(sys.argv[1:]).strip()
+    entry_text = " ".join(args).strip()
     if not entry_text:
         print("Error: Milestone text cannot be empty")
         raise SystemExit(1)
 
     try:
+        cli_logging.verbose("Processing milestone update...")
         add_milestone_entry(entry_text)
+        cli_logging.success("Milestone entry processed successfully")
     except Exception as exc:  # pragma: no cover - defensive
-        print(f"Error adding milestone entry: {exc}")
+        cli_logging.error(f"Error adding milestone entry: {exc}")
+        cli_logging.debug(
+            f"Debug context: cwd={Path.cwd()}, log_level={cli_logging.get_log_level()}"
+        )
         raise SystemExit(1) from exc
 
 

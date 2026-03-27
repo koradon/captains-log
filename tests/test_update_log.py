@@ -574,3 +574,88 @@ def test_main_version_flag_prints_version_and_exits(monkeypatch, capsys):
     out = capsys.readouterr().out
     assert "Captain's Log (update_log) v" in out
     assert exc.value.code == 0
+
+
+def test_main_accepts_log_level_and_updates_log(monkeypatch, capsys):
+    """update_log supports --log-level and still processes positional args."""
+    from src import update_log as update_log_src
+
+    class DummyConfig:
+        def __init__(self) -> None:
+            self.global_log_repo = None
+
+    class DummyCommitParser:
+        @staticmethod
+        def should_skip_commit(commit_sha, repo_path, log_repo_path):
+            return False
+
+        @staticmethod
+        def is_valid_commit_sha(commit_sha):
+            return True
+
+    class DummyProject:
+        def __init__(self) -> None:
+            self.name = "test-project"
+
+    class DummyProjectFinder:
+        def __init__(self, config) -> None:
+            self.config = config
+
+        def find_project(self, repo_path):
+            return DummyProject()
+
+    class DummyLogInfo:
+        def __init__(self) -> None:
+            self.has_git_repo = False
+            self.log_repo_path = None
+
+    class DummyLogData:
+        def __init__(self) -> None:
+            self.repos = {}
+
+        def get_repo_entries(self, repo_name):
+            return []
+
+        def set_repo_entries(self, repo_name, entries):
+            self.repos[repo_name] = entries
+
+    class DummyLogManager:
+        def __init__(self, config) -> None:
+            self.config = config
+
+        def get_log_file_info(self, project):
+            return DummyLogInfo()
+
+        def load_log(self, log_info):
+            return DummyLogData()
+
+        def save_log(self, log_info, log_data):
+            return None
+
+    class DummyEntryProcessor:
+        def update_commit_entries(self, entries, commit_sha, commit_msg):
+            return [f"- ({commit_sha[:7]}) {commit_msg}"]
+
+    monkeypatch.setattr(update_log_src, "load_config", lambda: DummyConfig())
+    monkeypatch.setattr(update_log_src, "CommitParser", DummyCommitParser)
+    monkeypatch.setattr(update_log_src, "ProjectFinder", DummyProjectFinder)
+    monkeypatch.setattr(update_log_src, "LogManager", DummyLogManager)
+    monkeypatch.setattr(update_log_src, "EntryProcessor", DummyEntryProcessor)
+    monkeypatch.setattr(
+        update_log_src.sys,
+        "argv",
+        [
+            "update_log.py",
+            "--log-level",
+            "debug",
+            "repo1",
+            "/tmp/repo1",
+            "abc123456",
+            "Test commit",
+        ],
+    )
+
+    update_log_src.main()
+
+    out = capsys.readouterr().out
+    assert "Updated log for repo1 in project test-project" in out

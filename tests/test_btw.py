@@ -91,8 +91,12 @@ def test_add_manual_entry_adds_and_commits(tmp_path, monkeypatch, capsys):
         recorded.get("git_message")
         == "Add manual entry to test-project logs for 2026-03-10"
     )
-    assert recorded.get("set_entries")[0] == "other"
-    assert "- Did a thing" in recorded.get("set_entries")[1]
+    set_entries = recorded.get("set_entries")
+    assert isinstance(set_entries, tuple)
+    category, entries = set_entries
+    assert category == "other"
+    assert isinstance(entries, list)
+    assert "- Did a thing" in entries
 
 
 def test_add_manual_entry_duplicate_does_not_save_or_commit(
@@ -227,6 +231,25 @@ def test_main_calls_add_manual_entry(monkeypatch):
 
     monkeypatch.setattr(btw, "add_manual_entry", fake_add_manual_entry)
     monkeypatch.setattr(btw.sys, "argv", ["btw", "Did", "a", "thing"])
+
+    btw.main()
+
+    assert recorded["text"] == "Did a thing"
+
+
+def test_main_calls_add_manual_entry_with_log_level(monkeypatch):
+    """btw supports global --log-level and still parses message."""
+    import src.btw as btw
+
+    recorded: dict[str, str] = {}
+
+    def fake_add_manual_entry(text: str) -> None:
+        recorded["text"] = text
+
+    monkeypatch.setattr(btw, "add_manual_entry", fake_add_manual_entry)
+    monkeypatch.setattr(
+        btw.sys, "argv", ["btw", "--log-level", "debug", "Did", "a", "thing"]
+    )
 
     btw.main()
 

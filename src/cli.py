@@ -9,7 +9,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from . import __version__
+from . import __version__, cli_logging
 
 
 def _render_commit_msg_hook(python_executable: str) -> str:
@@ -280,12 +280,22 @@ exit 0
 
 def main():
     """Main entry point for the captains-log CLI."""
-    if len(sys.argv) < 2:
+    try:
+        args, log_level = cli_logging.split_log_level_args(sys.argv[1:])
+    except ValueError as exc:
+        cli_logging.error(str(exc))
+        sys.exit(1)
+    cli_logging.configure_log_level(log_level)
+
+    if len(args) < 1:
         print("Captain's Log - Automatically log your git commits")
         print(f"Version: {__version__}")
         print()
         print("Usage:")
-        print("  captains-log setup                 - Set up Captain's Log")
+        print(
+            "  captains-log [--log-level compact|verbose|debug] setup"
+            " - Set up Captain's Log"
+        )
         print(
             "  captains-log install-precommit-hooks - Install global pre-commit wrappers"
         )
@@ -299,7 +309,7 @@ def main():
         print()
         sys.exit(0)
 
-    command = sys.argv[1]
+    command = args[0]
 
     if command in ("--version", "-v"):
         print_version()

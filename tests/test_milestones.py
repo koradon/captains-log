@@ -242,6 +242,25 @@ def test_main_calls_add_milestone_entry(monkeypatch):
     assert recorded["text"] == "First big win"
 
 
+def test_main_calls_add_milestone_entry_with_log_level(monkeypatch):
+    """stone supports global --log-level and still parses message."""
+    import src.stone as stone
+
+    recorded: dict[str, str] = {}
+
+    def fake_add_milestone_entry(text: str) -> None:
+        recorded["text"] = text
+
+    monkeypatch.setattr(stone, "add_milestone_entry", fake_add_milestone_entry)
+    monkeypatch.setattr(
+        stone.sys, "argv", ["stone", "--log-level", "verbose", "First", "big", "win"]
+    )
+
+    stone.main()
+
+    assert recorded["text"] == "First big win"
+
+
 def test_append_milestone_entry_adds_newline_if_missing(tmp_path):
     """Append when file lacks trailing newline inserts one before new entry."""
     from src.stone import append_milestone_entry as append_entry
