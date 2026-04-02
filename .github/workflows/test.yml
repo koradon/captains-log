@@ -68,13 +68,29 @@ jobs:
       with:
         python-version: '3.12'
 
-    - name: Test installation script
-      run: |
-        chmod +x install.sh
-        # Test that install.sh runs without errors (it's idempotent)
-        ./install.sh
+    - name: Install package
+      run: pip install -e .
 
-    - name: Test package installation
+    - name: Verify all CLI commands are installed
       run: |
-        pip install -e .
-        which captains-log || echo "Package installed successfully"
+        which captains-log
+        which btw
+        which wtf
+        which wnext
+        which stone
+
+    - name: Verify --version works for all commands
+      run: |
+        captains-log --version
+        btw --version
+        wtf --version
+        wnext --version
+        stone --version
+
+    - name: Verify --help works for all commands
+      run: |
+        captains-log --help
+        btw --help
+        wtf --help
+        wnext --help
+        stone --help
