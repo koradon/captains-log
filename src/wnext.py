@@ -13,6 +13,7 @@ from datetime import date
 from pathlib import Path
 from typing import List, Optional, Tuple
 
+from src import cli_logging
 from src.config import load_config
 from src.entries import EntryProcessor
 from src.git import GitOperations
@@ -31,7 +32,9 @@ def add_what_next_entry(entry_text: str, project_name: Optional[str], use_other:
     if project_name is not None:
         project = project_finder.get_project_by_name(project_name)
         if project is None:
-            print(f"Error: Project '{project_name}' not found in configuration")
+            cli_logging.error(
+                f"Error: Project '{project_name}' not found in configuration"
+            )
             sys.exit(1)
     else:
         project = project_finder.find_project(str(cwd))
@@ -97,12 +100,12 @@ def add_what_next_entry(entry_text: str, project_name: Optional[str], use_other:
             commit_message = f"Add What Next entry to {project.name} logs for {date.today().isoformat()}"
             git_ops.commit_and_push(commit_message)
 
-        print(
+        cli_logging.success(
             f"Added 'Whats next' entry to {project.name} "
             f"({'other' if use_other else section_name}): {entry_text}"
         )
     else:
-        print(
+        cli_logging.warning(
             f"'Whats next' entry already exists in {project.name} "
             f"({'other' if use_other else section_name}): {entry_text}"
         )
@@ -119,16 +122,20 @@ def _parse_args(argv: List[str]) -> Tuple[str, Optional[str], bool]:
         arg = argv[i]
         if arg in ("--project", "-p"):
             if use_other:
-                print("Error: --project/-p and --other/-o cannot be used together")
+                cli_logging.error(
+                    "Error: --project/-p and --other/-o cannot be used together"
+                )
                 sys.exit(1)
             i += 1
             if i >= len(argv):
-                print("Error: --project/-p requires a project name")
+                cli_logging.error("Error: --project/-p requires a project name")
                 sys.exit(1)
             project_name = argv[i]
         elif arg in ("--other", "-o"):
             if project_name is not None:
-                print("Error: --project/-p and --other/-o cannot be used together")
+                cli_logging.error(
+                    "Error: --project/-p and --other/-o cannot be used together"
+                )
                 sys.exit(1)
             use_other = True
         else:
@@ -145,25 +152,39 @@ def _parse_args(argv: List[str]) -> Tuple[str, Optional[str], bool]:
 
 def main():
     """Main entry point for the wnext script."""
+    try:
+        args, log_level = cli_logging.split_log_level_args(sys.argv[1:])
+    except ValueError as exc:
+        cli_logging.error(str(exc))
+        sys.exit(1)
+    cli_logging.configure_log_level(log_level)
+
     # Version flag
-    if len(sys.argv) > 1 and sys.argv[1] in ("--version", "-v"):
+    if len(args) > 0 and args[0] in ("--version", "-v"):
         from . import __version__
 
         print(f"Captain's Log (wnext) v{__version__}")
         sys.exit(0)
 
-    if len(sys.argv) < 2:
+    if len(args) < 1:
         print('Usage: wnext [--project/-p name | --other/-o] "What to do next"')
+        print(
+            '       wnext --log-level debug [--project/-p name | --other/-o] "What to do next"'
+        )
         print('Example: wnext "Plan sprint backlog refinement"')
         print('         wnext --other "Remember to update wiki"')
         sys.exit(1)
 
-    message, project_name, use_other = _parse_args(sys.argv[1:])
+    message, project_name, use_other = _parse_args(args)
 
     try:
+        cli_logging.verbose("Processing 'Whats next' entry update...")
         add_what_next_entry(message, project_name, use_other)
     except Exception as e:
-        print(f"Error adding What Next entry: {e}")
+        cli_logging.error(f"Error adding What Next entry: {e}")
+        cli_logging.debug(
+            f"Debug context: cwd={Path.cwd()}, log_level={cli_logging.get_log_level()}"
+        )
         sys.exit(1)
 
 

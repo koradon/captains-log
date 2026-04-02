@@ -10,6 +10,7 @@ from datetime import date
 from pathlib import Path
 
 # Domain imports
+from src import cli_logging
 from src.config import load_config
 from src.entries import EntryProcessor
 from src.git import CommitParser, GitOperations
@@ -97,23 +98,31 @@ FOOTER = "# Whats next\n\n\n# What Broke or Got Weird\n"
 
 def main():
     """Main entry point for the update log script."""
+    try:
+        args, log_level = cli_logging.split_log_level_args(sys.argv[1:])
+    except ValueError as exc:
+        cli_logging.error(str(exc))
+        sys.exit(0)
+    cli_logging.configure_log_level(log_level)
+
     # Check for version flag
-    if len(sys.argv) > 1 and sys.argv[1] in ("--version", "-v"):
+    if len(args) > 0 and args[0] in ("--version", "-v"):
         from . import __version__
 
         print(f"Captain's Log (update_log) v{__version__}")
         sys.exit(0)
 
-    if len(sys.argv) < 5:
+    if len(args) < 4:
         print(
-            "Usage: update_log.py <repo_name> <repo_path> <commit_sha> <commit_message>"
+            "Usage: update_log.py [--log-level compact|verbose|debug] "
+            "<repo_name> <repo_path> <commit_sha> <commit_message>"
         )
         return
 
-    repo_name = sys.argv[1]
-    repo_path = sys.argv[2]
-    commit_sha = sys.argv[3]
-    commit_msg = sys.argv[4]
+    repo_name = args[0]
+    repo_path = args[1]
+    commit_sha = args[2]
+    commit_msg = args[3]
 
     try:
         # Load configuration
@@ -168,9 +177,15 @@ def main():
             git_ops.commit_and_push(commit_message)
 
         print(f"Updated log for {repo_name} in project {project.name}")
+        cli_logging.debug(
+            f"Debug details: repo={repo_name}, repo_path={repo_path}, sha={commit_sha}"
+        )
 
     except Exception as e:
         print(f"Error updating log: {e}")
+        cli_logging.debug(
+            f"Debug context: repo={repo_name}, path={repo_path}, sha={commit_sha}"
+        )
         # Don't exit with error code to avoid breaking git operations
         sys.exit(0)
 

@@ -79,6 +79,37 @@ def test_main_setup_runs_setup(monkeypatch, capsys, tmp_path):
     assert (tmp_path / ".git-hooks").exists()
 
 
+def test_main_setup_runs_with_log_level_flag(monkeypatch, capsys, tmp_path):
+    """main supports global --log-level before command."""
+    monkeypatch.setattr(
+        cli.sys, "argv", ["captains-log", "--log-level", "debug", "setup"]
+    )
+    monkeypatch.setattr(cli.Path, "home", lambda: tmp_path)
+
+    mock_run = MagicMock()
+    mock_run.return_value.stdout = str(tmp_path / ".git-hooks")
+    monkeypatch.setattr(cli.subprocess, "run", mock_run)
+
+    cli.main()
+
+    out = capsys.readouterr().out
+    assert "=== Captain's Log Setup ===" in out
+
+
+def test_main_rejects_invalid_log_level(monkeypatch, capsys):
+    """main exits with code 1 for unsupported --log-level."""
+    monkeypatch.setattr(
+        cli.sys, "argv", ["captains-log", "--log-level", "trace", "setup"]
+    )
+
+    with pytest.raises(SystemExit) as exc:
+        cli.main()
+
+    out = capsys.readouterr().out
+    assert "invalid --log-level value" in out
+    assert exc.value.code == 1
+
+
 def test_setup_package_not_found_exits(monkeypatch, capsys, tmp_path):
     """setup exits when src has no __file__ (lines 40-43)."""
     monkeypatch.setattr(cli.Path, "home", lambda: tmp_path)

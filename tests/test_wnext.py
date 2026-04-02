@@ -477,6 +477,27 @@ def test_main_calls_add_what_next_entry(monkeypatch):
     assert recorded["args"] == ("Do it", "proj", False)
 
 
+def test_main_calls_add_what_next_entry_with_log_level(monkeypatch):
+    """wnext supports global --log-level and still parses args."""
+    import src.wnext as wnext
+
+    recorded: dict[str, object] = {}
+
+    def fake_add(message: str, project_name, use_other: bool) -> None:
+        recorded["args"] = (message, project_name, use_other)
+
+    monkeypatch.setattr(wnext, "add_what_next_entry", fake_add)
+    monkeypatch.setattr(
+        wnext.sys,
+        "argv",
+        ["wnext", "--log-level", "debug", "--project", "proj", "Do", "it"],
+    )
+
+    wnext.main()
+
+    assert recorded["args"] == ("Do it", "proj", False)
+
+
 def test_main_handles_add_what_next_entry_error(monkeypatch, capsys):
     """If add_what_next_entry raises, main prints error and exits with code 1."""
     import src.wnext as wnext
