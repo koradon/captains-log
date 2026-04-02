@@ -34,7 +34,7 @@ This will:
 - Configure `git config --global core.hooksPath ~/.git-hooks`
 - Create a default `~/.captains-log/config.yml` if it does not exist
 
-After that you can use `btw`, `wtf`, `wnext`, and `captains-log` from anywhere in your shell.
+After that you can use `btw`, `wtf`, `wnext`, `stone`, and `captains-log` from anywhere in your shell.
 
 See [INSTALLATION.md](INSTALLATION.md) for more detailed installation and configuration examples.
 
@@ -53,20 +53,6 @@ uv pip install -e .
 captains-log setup
 ```
 
-#### Legacy helper script (`install.sh`)
-
-There is also a legacy helper script:
-
-```bash
-chmod +x install.sh
-./install.sh
-```
-
-This script focuses on wiring up the `~/.captains-log` directory and global Git hooks.
-It **no longer installs Python dependencies globally** – you are expected to install
-the `git-captains-log` package (and therefore `PyYAML`) via `pipx`, `uv`, or `pip`
-in whatever Python environment your Git hooks will use.
-
 ### Pre-commit Integration (Optional)
 If you use [pre-commit](https://pre-commit.com/) in your repositories and want to keep both your global Captain's Log hooks and per-repo pre-commit hooks working together, you can install global wrapper hooks via the CLI:
 
@@ -77,46 +63,15 @@ captains-log install-precommit-hooks
 
 This will:
 - Install global hook wrappers in `~/.git-hooks` that run pre-commit first (when `.pre-commit-config.yaml` exists)
-- Then run Captain's Log afterwards (via `~/.captains-log/commit-msg`)
+- Then run Captain's Log afterwards
 - Configure `git config --global core.hooksPath ~/.git-hooks` (or reuse the existing value if already correct)
 - Work seamlessly with repos that do and do not use pre-commit
 
 **Note:** With pre-commit integration, you don't need to run `pre-commit install` in individual repositories. The global hooks will automatically invoke pre-commit when a repo has `.pre-commit-config.yaml`.
 
-#### Legacy helper script (`install-with-precommit.sh`)
+### Configuration
 
-For historical reasons there is also a shell helper script:
-
-```bash
-# After running install.sh
-chmod +x install-with-precommit.sh
-./install-with-precommit.sh
-```
-
-The script performs the same kind of global wrapper installation as `captains-log install-precommit-hooks`, but is kept mainly for backward compatibility.
-
-### Manual Installation
-If you prefer to install manually (legacy / advanced setup):
-
-1. Clone or download Captain's Log:
-
-```bash
-git clone git@github.com:koradon/captains-log.git ~/.captains-log
-cd ~/.captains-log
-```
-
-2. Ensure dependencies are available
-
-```bash
-# Prefer installing the packaged tool, which brings PyYAML as a dependency:
-pipx install git-captains-log
-# or:
-uv pip install git-captains-log
-# or, if you really want to use the system environment:
-pip install git-captains-log
-```
-
-3. Configure your projects and global log repo in `~/.captains-log/config.yml`
+Configure your projects and global log repo in `~/.captains-log/config.yml`:
 
 ```yaml
 global_log_repo: /path/to/global/log-repo
@@ -130,66 +85,33 @@ projects:
     log_repo: /path/to/private-tools/log-repo
 ```
 
-4. Setup Git hooks globally:
-
-```bash
-mkdir -p ~/.git-hooks
-cp ~/.captains-log/commit-msg ~/.git-hooks/
-chmod +x ~/.git-hooks/commit-msg
-git config --global core.hooksPath ~/.git-hooks
-```
-
-5. Make the Python script executable:
-
-```bash
-chmod +x ~/.captains-log/update_log.py
-```
-
 ## Development Setup
 
-This project uses UV for dependency management and Just for command running. To set up the development environment:
+This project uses UV for dependency management. To set up the development environment:
 
 1. Install UV if you haven't already:
 ```bash
 curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
 
-2. Install Just if you haven't already:
+2. Install development dependencies:
 ```bash
-# macOS
-brew install just
-
-# Linux
-curl --proto '=https' --tlsv1.2 -sSf https://just.systems/install.sh | bash
-
-# Or with cargo
-cargo install just
+uv sync --dev
 ```
 
-3. Install development dependencies:
+3. Run tests:
 ```bash
-just install-test
+uv run pytest
 ```
 
-4. Run tests:
+4. Run tests with coverage:
 ```bash
-just test
+uv run pytest --cov=src --cov-report=term-missing -v
 ```
 
-5. Run tests with coverage:
+5. Run linting:
 ```bash
-just test-cov
-```
-
-6. Clean up generated files:
-```bash
-just clean
-```
-
-7. Run specific tests:
-```bash
-just test-file test_update_log.py
-just test-pattern "load_config"
+uv run ruff check src/ tests/
 ```
 
 ## Usage
@@ -199,10 +121,20 @@ After setup, every git commit you make will update a daily markdown log file ins
 
 Logs are grouped by repository name under each project, with a date-based file (e.g., 2025-08-11.md).
 
-### Manual Log Entries with `btw`, `wtf`, and `wnext` Commands
+### CLI Commands
 
-#### `btw` Command - Log What You Did
-The `btw` (By The Way) command allows you to add manual entries to your daily logs from anywhere on your system:
+All commands support `--help` for full usage details, `--version` to show the installed version, and `--log-level compact|verbose|debug` for controlling output verbosity.
+
+Commands can be invoked either as standalone shortcuts or as subcommands of `captains-log`:
+
+```bash
+# These are equivalent:
+btw "Reviewed the API docs"
+captains-log btw "Reviewed the API docs"
+```
+
+#### `btw` - Log What You Did
+The `btw` (By The Way) command adds manual entries to the "What I did" section of your daily log:
 
 ```bash
 btw "Reviewed the new API documentation"
@@ -210,8 +142,8 @@ btw "Had a productive meeting about the architecture"
 btw "Fixed a bug that wasn't committed yet"
 ```
 
-#### `wtf` Command - Log Issues and Problems
-The `wtf` (What The Fault) command allows you to log issues, bugs, and weird behavior in the "What Broke or Got Weird" section:
+#### `wtf` - Log Issues and Problems
+The `wtf` (What The Fault) command logs issues, bugs, and weird behavior in the "What Broke or Got Weird" section:
 
 ```bash
 wtf "API endpoint started returning 500 errors"
@@ -219,9 +151,8 @@ wtf "Database connection timeout after 10 minutes"
 wtf "Tests failing intermittently on CI"
 ```
 
-#### `wnext` Command - Log What’s Next
-
-The `wnext` command lets you quickly add items to the "Whats next" section of your daily logs:
+#### `wnext` - Log What's Next
+The `wnext` command adds items to the "Whats next" section of your daily logs:
 
 ```bash
 # Default: log under the current project subsection
@@ -229,9 +160,20 @@ wnext "Plan sprint backlog refinement"
 
 # Log under a specific project subsection
 wnext --project my-project "Prepare release checklist"
+wnext -p my-project "Prepare release checklist"
 
 # Log under the generic 'other' subsection
 wnext --other "Remember to update the team wiki"
+wnext -o "Remember to update the team wiki"
+```
+
+#### `stone` - Log Milestones
+The `stone` command adds entries to a yearly `milestone.md` file for the current project:
+
+```bash
+stone "Shipped v1.0 of the product"
+stone "First 1000 users milestone reached"
+stone "Completed migration to new infrastructure"
 ```
 
 #### How They Work:
@@ -242,6 +184,7 @@ wnext --other "Remember to update the team wiki"
   - `btw` entries appear in the "What I did" section under "## other"
   - `wtf` entries appear in the "What Broke or Got Weird" section
   - `wnext` entries appear in the "Whats next" section, grouped by project subsection or under "## other"
+  - `stone` entries appear in a separate yearly `milestone.md` file
 - **Same Infrastructure**: Uses your existing Captain's Log configuration and repositories
 
 #### Examples:
@@ -253,18 +196,16 @@ btw "Completed code review for new feature"
 # → Adds to my-project's daily log under "What I did" → "## other"
 
 wtf "Found memory leak in background worker"
-# → Adds to my-project's daily log under "What Broke or Got Weird" → "## other"
+# → Adds to my-project's daily log under "What Broke or Got Weird"
+
+stone "Shipped the background worker rewrite"
+# → Adds to my-project's milestone.md
 
 # From any directory
 cd ~/Downloads
 btw "Downloaded and reviewed the client requirements"
 # → Adds to Downloads project log under "What I did"
 ```
-
-#### Installation:
-All three commands are automatically installed with the main Captain's Log installation:
-- Accessible globally from any directory (via the `pipx`/`pip` console scripts)
-- When using the legacy `install.sh`, wrapper scripts are installed to `~/.local/bin/btw`, `~/.local/bin/wtf`, and `~/.local/bin/wnext` (ensure `~/.local/bin` is in your PATH)
 
 #### Log Format:
 Your daily logs will show git commits by repository in "What I did", followed by "Whats next" (with optional subsections) and a flat list in "What Broke or Got Weird":
@@ -297,43 +238,27 @@ Your daily logs will show git commits by repository in "What I did", followed by
 ```
 
 ## Testing
-To test if your installation is working correctly:
-
-### Basic Captain's Log Test
-```bash
-python3 test_hook.py
-```
-
-This will simulate a commit and show you if the log update is working properly.
-
-### Pre-commit Integration Test
-If you installed pre-commit integration, test the dispatcher:
+Run the test suite:
 
 ```bash
-python3 test_hook_precommit.py
+uv run pytest tests/ -v
 ```
-
-This will test that the hook dispatcher correctly runs pre-commit (if configured) followed by Captain's Log.
 
 ## Troubleshooting
 
 ### Hook not running
-- Make sure you've run `install.sh` and it completed successfully
+- Make sure you've run `captains-log setup` and it completed successfully
 - Check that `git config --global core.hooksPath` points to `~/.git-hooks`
 - Verify the `commit-msg` file exists in `~/.git-hooks/` and is executable
 
 ### Pre-commit integration issues
-- Ensure you ran `captains-log setup` (or `install.sh` for legacy) before `captains-log install-precommit-hooks` (or `install-with-precommit.sh`)
+- Ensure you ran `captains-log setup` before `captains-log install-precommit-hooks`
 - Check that both `commit-msg` and `commit-msg-precommit` exist in `~/.git-hooks/`
 - If pre-commit errors occur, verify you have pre-commit installed: `pip install pre-commit`
 - The integration only runs pre-commit in repos with `.pre-commit-config.yaml`
 
-### Script not found errors
-- Ensure `update_log.py` was copied to `~/.captains-log/`
-- Check that the script has execute permissions: `chmod +x ~/.captains-log/update_log.py`
-
 ### Permission errors
-- Make sure both the hook and script are executable
+- Make sure the hook files are executable
 - Check that your user has write access to the log directories
 
 ### Conflicting with existing pre-commit setup
@@ -341,9 +266,8 @@ If you previously used `pre-commit install` in repositories:
 - You can safely leave existing `.git/hooks/` as they won't be used (global `core.hooksPath` takes precedence)
 - Or clean them up with `pre-commit uninstall` in each repo if you prefer
 
-### `btw`, `wtf`, or `wnext` command not found
-If the `btw`, `wtf`, or `wnext` commands are not accessible:
-- Ensure `~/.local/bin` is in your PATH: `echo $PATH | grep ~/.local/bin`
-- Add to your shell profile if missing: `echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zshrc && source ~/.zshrc`
-- Verify the symlinks exist (legacy script install): `ls -la ~/.local/bin/btw ~/.local/bin/wtf ~/.local/bin/wnext`
-- Re-run the installation if needed: `./install.sh` or reinstall the package with `pipx install git-captains-log`
+### `btw`, `wtf`, `wnext`, or `stone` command not found
+If commands are not accessible after installation:
+- Verify the package is installed: `pip show git-captains-log` or `pipx list`
+- If installed with pipx, ensure `~/.local/bin` is in your PATH
+- Reinstall if needed: `pipx install git-captains-log`
