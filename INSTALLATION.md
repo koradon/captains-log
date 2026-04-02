@@ -13,9 +13,11 @@ uv pip install git-captains-log
 ```
 
 This will install:
+- The `captains-log` command - unified CLI with all subcommands
 - The `btw` command - for adding manual log entries
 - The `wtf` command - for logging issues and bugs
-- The `captains-log` command - for setup and configuration
+- The `wnext` command - for logging what's next
+- The `stone` command - for logging milestones
 
 ### Step 2: Run Setup
 
@@ -61,10 +63,18 @@ btw "Reviewed the API documentation"
 # Log issues
 wtf "API endpoint returning 500 errors"
 
+# Log what's next
+wnext "Plan sprint backlog refinement"
+
+# Log milestones
+stone "Shipped v1.0"
+
 # Check version
 captains-log --version
-btw --version
-wtf --version
+
+# Get help for any command
+captains-log --help
+btw --help
 ```
 
 ## For Developers (Local Installation)
@@ -78,9 +88,6 @@ cd captains-log
 
 # Install in editable mode with uv
 uv pip install -e .
-
-# Or run the legacy install script
-./install.sh
 ```
 
 ## How It Works
@@ -91,9 +98,11 @@ uv pip install -e .
 1. pip install git-captains-log
    └─> Installs Python package to site-packages
        └─> Creates console scripts:
-           ├─> btw (accessible from anywhere)
-           ├─> wtf (accessible from anywhere)
-           └─> captains-log (accessible from anywhere)
+           ├─> captains-log (unified CLI with subcommands)
+           ├─> btw (shortcut for captains-log btw)
+           ├─> wtf (shortcut for captains-log wtf)
+           ├─> wnext (shortcut for captains-log wnext)
+           └─> stone (shortcut for captains-log stone)
 
 2. captains-log setup
    └─> Creates ~/.captains-log/
