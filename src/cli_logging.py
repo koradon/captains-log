@@ -2,12 +2,23 @@
 
 from __future__ import annotations
 
+import enum
 import os
 import sys
 from typing import Sequence
 
 LOG_LEVELS = ("compact", "verbose", "debug")
 DEFAULT_LOG_LEVEL = "compact"
+
+
+class LogLevel(str, enum.Enum):
+    """Enum used by Typer CLI options for --log-level validation."""
+
+    compact = "compact"
+    verbose = "verbose"
+    debug = "debug"
+
+
 _current_log_level = DEFAULT_LOG_LEVEL
 
 
