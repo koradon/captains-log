@@ -24,3 +24,8 @@ class ProjectInfo:
     def root_dir(self) -> Optional[Path]:
         """Get the root directory for this project."""
         return self.config.root
+
+    @property
+    def is_private(self) -> bool:
+        """Check if this project is private (delegates to config)."""
+        return self.config.is_private()

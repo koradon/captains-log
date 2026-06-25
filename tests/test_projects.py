@@ -1,6 +1,8 @@
 """Tests for the projects module."""
 
+import os
 from pathlib import Path
+from unittest.mock import patch
 
 from src.config import Config, ProjectConfig
 from src.projects import ProjectFinder, ProjectInfo
@@ -16,6 +18,23 @@ def test_project_info_properties():
     assert info.log_repo == Path("/tmp/logs")
     assert info.root_dir == Path("/tmp/test")
     assert info.base_dir == Path("/tmp/test")
+
+
+def test_project_info_is_private_delegates_to_config():
+    """Test that ProjectInfo.is_private delegates to ProjectConfig.is_private()."""
+    private_config = ProjectConfig(root=Path("/tmp/test"), private=True)
+    public_config = ProjectConfig(root=Path("/tmp/test"), private=False)
+
+    with patch.dict(os.environ, {}, clear=True):
+        private_info = ProjectInfo(
+            name="secret", config=private_config, base_dir=Path("/tmp/test")
+        )
+        assert private_info.is_private is True
+
+        public_info = ProjectInfo(
+            name="public", config=public_config, base_dir=Path("/tmp/test")
+        )
+        assert public_info.is_private is False
 
 
 # ProjectFinder tests

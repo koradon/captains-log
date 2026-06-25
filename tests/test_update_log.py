@@ -576,6 +576,97 @@ def test_main_version_flag_prints_version_and_exits(monkeypatch, capsys):
     assert exc.value.code == 0
 
 
+def test_main_skips_private_repo(monkeypatch, capsys):
+    """When project is private, main prints skip message and does not log."""
+    from src import update_log as update_log_src
+    from src.config.config_models import ProjectConfig
+    from src.projects.project_models import ProjectInfo
+
+    class DummyConfig:
+        def __init__(self) -> None:
+            self.global_log_repo = None
+
+    class DummyCommitParser:
+        @staticmethod
+        def should_skip_commit(commit_sha, repo_path, log_repo_path):
+            return False
+
+        @staticmethod
+        def is_valid_commit_sha(commit_sha):
+            return True
+
+    class DummyProjectFinder:
+        def __init__(self, config) -> None:
+            pass
+
+        def find_project(self, repo_path):
+            return ProjectInfo(
+                name="secret-project",
+                config=ProjectConfig(root=Path("/tmp/secret"), private=True),
+                base_dir=Path("/tmp/secret"),
+            )
+
+    monkeypatch.setattr(update_log_src, "load_config", lambda: DummyConfig())
+    monkeypatch.setattr(update_log_src, "CommitParser", DummyCommitParser)
+    monkeypatch.setattr(update_log_src, "ProjectFinder", DummyProjectFinder)
+    monkeypatch.setattr(
+        update_log_src.sys,
+        "argv",
+        ["update_log.py", "secret-repo", "/tmp/secret", "abc1234", "Secret commit"],
+    )
+
+    update_log_src.main()
+
+    out = capsys.readouterr().out
+    assert "Skipping log update: repository is private" in out
+
+
+def test_main_skips_private_repo_via_env(monkeypatch, capsys):
+    """CAPTAINS_LOG_PRIVATE env var causes main to skip logging."""
+    from src import update_log as update_log_src
+    from src.config.config_models import ProjectConfig
+    from src.projects.project_models import ProjectInfo
+
+    class DummyConfig:
+        def __init__(self) -> None:
+            self.global_log_repo = None
+
+    class DummyCommitParser:
+        @staticmethod
+        def should_skip_commit(commit_sha, repo_path, log_repo_path):
+            return False
+
+        @staticmethod
+        def is_valid_commit_sha(commit_sha):
+            return True
+
+    class DummyProjectFinder:
+        def __init__(self, config) -> None:
+            pass
+
+        def find_project(self, repo_path):
+            return ProjectInfo(
+                name="some-project",
+                config=ProjectConfig(root=Path("/tmp/project"), private=False),
+                base_dir=Path("/tmp/project"),
+            )
+
+    monkeypatch.setattr(update_log_src, "load_config", lambda: DummyConfig())
+    monkeypatch.setattr(update_log_src, "CommitParser", DummyCommitParser)
+    monkeypatch.setattr(update_log_src, "ProjectFinder", DummyProjectFinder)
+    monkeypatch.setenv("CAPTAINS_LOG_PRIVATE", "true")
+    monkeypatch.setattr(
+        update_log_src.sys,
+        "argv",
+        ["update_log.py", "repo1", "/tmp/project", "abc1234", "Some commit"],
+    )
+
+    update_log_src.main()
+
+    out = capsys.readouterr().out
+    assert "Skipping log update: repository is private" in out
+
+
 def test_main_accepts_log_level_and_updates_log(monkeypatch, capsys):
     """update_log supports --log-level and still processes positional args."""
     from src import update_log as update_log_src
@@ -596,6 +687,7 @@ def test_main_accepts_log_level_and_updates_log(monkeypatch, capsys):
     class DummyProject:
         def __init__(self) -> None:
             self.name = "test-project"
+            self.is_private = False
 
     class DummyProjectFinder:
         def __init__(self, config) -> None:
