@@ -1,5 +1,6 @@
 """Configuration data models for Captain's Log."""
 
+import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, Optional, Union
@@ -11,6 +12,7 @@ class ProjectConfig:
 
     root: Optional[Path] = None
     log_repo: Optional[Path] = None
+    private: bool = False
 
     @classmethod
     def from_dict(cls, data: Union[str, Dict]) -> "ProjectConfig":
@@ -22,12 +24,25 @@ class ProjectConfig:
             # Dictionary format with explicit fields
             root = data.get("root")
             log_repo = data.get("log_repo")
+            private = bool(data.get("private", False))
             return cls(
                 root=Path(root).resolve() if root else None,
                 log_repo=Path(log_repo).resolve() if log_repo else None,
+                private=private,
             )
         else:
             return cls()
+
+    def is_private(self) -> bool:
+        """Check if this project is private.
+
+        Environment variable CAPTAINS_LOG_PRIVATE overrides the config value.
+        Accepted truthy values: "1", "true", "yes" (case-insensitive).
+        """
+        env_val = os.environ.get("CAPTAINS_LOG_PRIVATE")
+        if env_val is not None:
+            return env_val.lower() in ("1", "true", "yes")
+        return self.private
 
 
 @dataclass

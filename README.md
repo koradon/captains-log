@@ -83,7 +83,23 @@ projects:
   private-tools:
     root: /path/to/private/repos/tools
     log_repo: /path/to/private-tools/log-repo
+
+  secret-project:
+    root: /path/to/secret/project
+    private: true   # commits will not be logged
 ```
+
+#### Private Repositories
+
+Set `private: true` on a project to prevent its commits from appearing in the daily log. The commit-msg hook still runs but silently skips the logging step, so other features (`btw`, `wtf`, `wnext`, `stone`) remain available.
+
+You can also set the `CAPTAINS_LOG_PRIVATE` environment variable to override the config value for the current shell session (useful in CI or per-repo `.envrc` files):
+
+```bash
+export CAPTAINS_LOG_PRIVATE=true   # accepted values: 1, true, yes
+```
+
+Precedence: environment variable > config file > default (`false`).
 
 ## Development Setup
 

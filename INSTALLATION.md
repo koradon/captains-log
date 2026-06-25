@@ -49,7 +49,14 @@ projects:
     root: /path/to/repos/another-project
     # Optional: use a different log repo for this project
     log_repo: /path/to/specific/log-repo
+
+  secret-project:
+    root: /path/to/secret/project
+    # Optional: mark as private to skip commit logging
+    private: true
 ```
+
+You can also override the private flag per-session with the `CAPTAINS_LOG_PRIVATE` environment variable (`1`, `true`, or `yes` to enable).
 
 ### Step 4: Start Using It!
 

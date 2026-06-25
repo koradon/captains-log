@@ -144,6 +144,10 @@ def main():
         project_finder = ProjectFinder(config)
         project = project_finder.find_project(repo_path)
 
+        if project.is_private:
+            print("Skipping log update: repository is private")
+            return
+
         # Get log file information
         log_manager = LogManager(config)
         log_info = log_manager.get_log_file_info(project)

@@ -1,5 +1,6 @@
 """Tests for the config module."""
 
+import os
 from pathlib import Path
 from unittest.mock import patch
 
@@ -22,6 +23,62 @@ def test_project_config_from_dict_dict_format():
     config = ProjectConfig.from_dict(data)
     assert config.root == Path("/tmp/test").resolve()
     assert config.log_repo == Path("/tmp/logs").resolve()
+
+
+def test_project_config_from_dict_dict_format_private_true():
+    """Test creating ProjectConfig with private=True."""
+    data = {"root": "/tmp/test", "private": True}
+    config = ProjectConfig.from_dict(data)
+    assert config.root == Path("/tmp/test").resolve()
+    assert config.private is True
+
+
+def test_project_config_from_dict_dict_format_private_false():
+    """Test creating ProjectConfig with explicit private=False."""
+    data = {"root": "/tmp/test", "private": False}
+    config = ProjectConfig.from_dict(data)
+    assert config.private is False
+
+
+def test_project_config_from_dict_dict_format_private_default():
+    """Test that private defaults to False when not specified."""
+    data = {"root": "/tmp/test"}
+    config = ProjectConfig.from_dict(data)
+    assert config.private is False
+
+
+def test_project_config_from_dict_string_format_private_default():
+    """Test that string-shorthand projects default to private=False."""
+    config = ProjectConfig.from_dict("/tmp/test")
+    assert config.private is False
+
+
+def test_project_config_is_private_from_config():
+    """Test is_private() returns the config value when env var is not set."""
+    config_private = ProjectConfig(root=Path("/tmp/test"), private=True)
+    config_public = ProjectConfig(root=Path("/tmp/test"), private=False)
+
+    with patch.dict(os.environ, {}, clear=True):
+        assert config_private.is_private() is True
+        assert config_public.is_private() is False
+
+
+def test_project_config_is_private_env_override_true():
+    """Test CAPTAINS_LOG_PRIVATE env var overrides config to True."""
+    config = ProjectConfig(root=Path("/tmp/test"), private=False)
+
+    for val in ("1", "true", "True", "TRUE", "yes", "Yes"):
+        with patch.dict(os.environ, {"CAPTAINS_LOG_PRIVATE": val}):
+            assert config.is_private() is True, f"Expected True for env val '{val}'"
+
+
+def test_project_config_is_private_env_override_false():
+    """Test CAPTAINS_LOG_PRIVATE env var overrides config to False."""
+    config = ProjectConfig(root=Path("/tmp/test"), private=True)
+
+    for val in ("0", "false", "no", ""):
+        with patch.dict(os.environ, {"CAPTAINS_LOG_PRIVATE": val}):
+            assert config.is_private() is False, f"Expected False for env val '{val}'"
 
 
 def test_project_config_from_dict_empty():
