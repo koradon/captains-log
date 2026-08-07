@@ -198,6 +198,161 @@ def test_git_operations_push_error(mock_run, tmp_path):
 
 
 @patch("subprocess.run")
+def test_git_operations_pull_success(mock_run, tmp_path):
+    """Test a successful pull (including the no-op / already-up-to-date case)."""
+    repo_path = tmp_path / "repo"
+    git_ops = GitOperations(repo_path)
+
+    assert git_ops.pull() is True
+    mock_run.assert_called_once_with(
+        ["git", "-C", str(repo_path), "pull", "--no-rebase"],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+
+@patch("subprocess.run")
+def test_git_operations_pull_no_remote(mock_run, tmp_path):
+    """Test pull failing gracefully when there is no remote/offline."""
+    repo_path = tmp_path / "repo"
+    git_ops = GitOperations(repo_path)
+
+    mock_run.side_effect = subprocess.CalledProcessError(
+        1, "git pull", stderr="fatal: No remote repository specified."
+    )
+
+    with patch("builtins.print") as mock_print:
+        result = git_ops.pull()
+
+    assert result is False
+    mock_print.assert_called_with(
+        "Warning: Failed to pull changes: fatal: No remote repository specified."
+    )
+    mock_run.assert_called_once()
+
+
+@patch("subprocess.run")
+def test_git_operations_pull_conflict_aborts_merge(mock_run, tmp_path):
+    """A conflicting pull must abort the merge, never leave conflict markers."""
+    repo_path = tmp_path / "repo"
+    git_ops = GitOperations(repo_path)
+
+    conflict_error = subprocess.CalledProcessError(1, "git pull")
+    conflict_error.stdout = "Auto-merging 2026.08.07.md\n"
+    conflict_error.stderr = "CONFLICT (content): Merge conflict in 2026.08.07.md\n"
+    mock_run.side_effect = [
+        conflict_error,
+        MagicMock(),  # git merge --abort
+    ]
+
+    with patch("builtins.print") as mock_print:
+        result = git_ops.pull()
+
+    assert result is False
+    assert mock_run.call_count == 2
+    abort_call = mock_run.call_args_list[1][0][0]
+    assert abort_call == ["git", "-C", str(repo_path), "merge", "--abort"]
+    mock_print.assert_called_with(
+        "Warning: Pull produced a merge conflict, aborted the merge. "
+        "Resolve manually by running 'git pull' in the log repository."
+    )
+
+
+def test_git_operations_ensure_merge_driver_creates_gitattributes(tmp_path):
+    """ensure_merge_driver adds the union merge attribute when it's missing."""
+    repo_path = tmp_path / "repo"
+    repo_path.mkdir()
+    git_ops = GitOperations(repo_path)
+
+    with patch.object(git_ops, "add_file", return_value=True) as mock_add_file:
+        result = git_ops.ensure_merge_driver()
+
+    assert result is True
+    gitattributes = repo_path / ".gitattributes"
+    assert gitattributes.read_text(encoding="utf-8") == "*.md merge=union\n"
+    mock_add_file.assert_called_once_with(gitattributes)
+
+
+def test_git_operations_ensure_merge_driver_already_present(tmp_path):
+    """ensure_merge_driver is a no-op once the attribute is already there."""
+    repo_path = tmp_path / "repo"
+    repo_path.mkdir()
+    (repo_path / ".gitattributes").write_text("*.md merge=union\n", encoding="utf-8")
+    git_ops = GitOperations(repo_path)
+
+    with patch.object(git_ops, "add_file") as mock_add_file:
+        result = git_ops.ensure_merge_driver()
+
+    assert result is False
+    mock_add_file.assert_not_called()
+
+
+def test_git_operations_ensure_merge_driver_preserves_existing_content(tmp_path):
+    """ensure_merge_driver appends to, rather than clobbers, an existing file."""
+    repo_path = tmp_path / "repo"
+    repo_path.mkdir()
+    (repo_path / ".gitattributes").write_text("*.png binary\n", encoding="utf-8")
+    git_ops = GitOperations(repo_path)
+
+    with patch.object(git_ops, "add_file", return_value=True):
+        result = git_ops.ensure_merge_driver()
+
+    assert result is True
+    content = (repo_path / ".gitattributes").read_text(encoding="utf-8")
+    assert content == "*.png binary\n*.md merge=union\n"
+
+
+def test_git_operations_commit_and_push_retries_after_rejected_push(
+    monkeypatch, tmp_path
+):
+    """A rejected push is retried (pull, then push again) before giving up."""
+    repo_path = tmp_path / "repo"
+    git_ops = GitOperations(repo_path)
+
+    monkeypatch.setattr(git_ops, "has_lock_files", lambda: False)
+    monkeypatch.setattr(git_ops, "ensure_merge_driver", lambda: False)
+    monkeypatch.setattr(git_ops, "has_changes", lambda: True)
+    monkeypatch.setattr(git_ops, "add_all", lambda: True)
+    monkeypatch.setattr(git_ops, "commit", lambda msg: True)
+
+    push_results = iter([False, True])
+    pull_calls = []
+    monkeypatch.setattr(git_ops, "push", lambda: next(push_results))
+    monkeypatch.setattr(git_ops, "pull", lambda: pull_calls.append(1))
+
+    result = git_ops.commit_and_push("Test commit")
+
+    assert result is True
+    assert len(pull_calls) == 1
+
+
+def test_git_operations_commit_and_push_gives_up_after_max_retries(
+    monkeypatch, tmp_path
+):
+    """Push keeps failing: give up after MAX_PUSH_RETRIES pull+push retries."""
+    repo_path = tmp_path / "repo"
+    git_ops = GitOperations(repo_path)
+
+    monkeypatch.setattr(git_ops, "has_lock_files", lambda: False)
+    monkeypatch.setattr(git_ops, "ensure_merge_driver", lambda: False)
+    monkeypatch.setattr(git_ops, "has_changes", lambda: True)
+    monkeypatch.setattr(git_ops, "add_all", lambda: True)
+    monkeypatch.setattr(git_ops, "commit", lambda msg: True)
+    monkeypatch.setattr(git_ops, "push", lambda: False)
+
+    pull_calls = []
+    monkeypatch.setattr(git_ops, "pull", lambda: pull_calls.append(1))
+
+    with patch("builtins.print") as mock_print:
+        result = git_ops.commit_and_push("Test commit")
+
+    assert result is False
+    assert len(pull_calls) == GitOperations.MAX_PUSH_RETRIES
+    mock_print.assert_any_call("Warning: Failed to push changes")
+
+
+@patch("subprocess.run")
 def test_git_operations_commit_and_push_success(mock_run, tmp_path):
     """Test successful commit and push workflow."""
     repo_path = tmp_path / "repo"
@@ -207,8 +362,9 @@ def test_git_operations_commit_and_push_success(mock_run, tmp_path):
     file_path = repo_path / "test.txt"
     file_path.write_text("test")
 
-    # Mock git operations: status, add_all, commit, push
+    # Mock git operations: gitattributes bootstrap, status, add_all, commit, push
     mock_run.side_effect = [
+        MagicMock(),  # git add .gitattributes (ensure_merge_driver)
         MagicMock(stdout="M  test.txt"),  # status - has changes
         MagicMock(),  # add_all
         MagicMock(),  # commit
@@ -219,7 +375,7 @@ def test_git_operations_commit_and_push_success(mock_run, tmp_path):
     result = git_ops.commit_and_push("Test commit")
 
     assert result is True
-    assert mock_run.call_count == 4
+    assert mock_run.call_count == 5
 
 
 def test_git_operations_commit_and_push_lock_files(tmp_path):
@@ -329,8 +485,10 @@ def test_git_operations_commit_and_push_uses_add_all(mock_run, tmp_path):
     file1.write_text("test1")
     file2.write_text("test2")
 
-    # Mock git operations: status (for has_changes), status (for add_all), batch add files, commit, push
+    # Mock git operations: gitattributes bootstrap, status (for has_changes),
+    # status (for add_all), batch add files, commit, push
     mock_run.side_effect = [
+        MagicMock(),  # git add .gitattributes (ensure_merge_driver)
         MagicMock(stdout="M  test1.md\nM  test2.md"),  # status - has changes
         MagicMock(stdout="M  test1.md\nM  test2.md"),  # status - for add_all
         MagicMock(),  # batch add: test1.md and test2.md together
@@ -342,12 +500,15 @@ def test_git_operations_commit_and_push_uses_add_all(mock_run, tmp_path):
     result = git_ops.commit_and_push("Test commit")
 
     assert result is True
-    assert mock_run.call_count == 5
+    assert mock_run.call_count == 6
 
-    # Verify add_all filtered to .md files and batched them together
+    # Verify add_all filtered to .md files and batched them together, on top
+    # of the one-time .gitattributes bootstrap add
     add_calls = [call[0][0] for call in mock_run.call_args_list if "add" in call[0][0]]
-    assert len(add_calls) == 1, "Should batch add both .md files together"
-    assert "test1.md" in add_calls[0] and "test2.md" in add_calls[0]
+    assert len(add_calls) == 2
+    md_add_calls = [c for c in add_calls if "test1.md" in c]
+    assert len(md_add_calls) == 1, "Should batch add both .md files together"
+    assert "test1.md" in md_add_calls[0] and "test2.md" in md_add_calls[0]
 
 
 @patch("subprocess.run")
@@ -357,8 +518,10 @@ def test_git_operations_commit_and_push_add_all_failure(mock_run, tmp_path):
     git_dir = repo_path / ".git"
     git_dir.mkdir(parents=True)
 
-    # Mock git operations: status succeeds (for has_changes), status succeeds (for add_all), add fails
+    # Mock git operations: gitattributes bootstrap, status succeeds (for
+    # has_changes), status succeeds (for add_all), add fails
     mock_run.side_effect = [
+        MagicMock(),  # git add .gitattributes (ensure_merge_driver)
         MagicMock(stdout="M  test.md"),  # status - has changes
         MagicMock(stdout="M  test.md"),  # status - for add_all
         subprocess.CalledProcessError(1, "git add"),  # add fails

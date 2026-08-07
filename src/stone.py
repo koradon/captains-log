@@ -95,12 +95,17 @@ def append_milestone_entry(
     file_path.write_text(content, encoding="utf-8")
 
 
-def build_milestone_context() -> MilestoneContext:
-    """Build the milestone context from the current working directory."""
+def resolve_project() -> tuple[Config, ProjectInfo]:
+    """Resolve the config and project for the current working directory."""
     config = load_config()
     project_finder = ProjectFinder(config)
     cwd = Path.cwd()
     project = project_finder.find_project(str(cwd))
+    return config, project
+
+
+def build_milestone_context(config: Config, project: ProjectInfo) -> MilestoneContext:
+    """Build the milestone context for an already-resolved config and project."""
     today = date.today()
     file_path = get_milestone_file_path(config, project, today)
     return MilestoneContext(
@@ -110,13 +115,23 @@ def build_milestone_context() -> MilestoneContext:
 
 def add_milestone_entry(entry_text: str) -> None:
     """High-level API to add a milestone entry for the current project."""
-    ctx = build_milestone_context()
+    config, project = resolve_project()
+
+    # Pull remote changes before deciding where the entry goes, since the
+    # destination (flat milestone.md vs <year>/milestone.md) depends on
+    # whether a <year>/ directory already exists locally. Pulling first
+    # ensures a rollover pushed from another machine (or directly on GitHub)
+    # is reflected in that decision, instead of writing to a now-stale path.
+    log_repo_path = project.log_repo or config.global_log_repo
+    if log_repo_path is not None:
+        GitOperations(log_repo_path).pull()
+
+    ctx = build_milestone_context(config, project)
     emoji = random.choice(EMOJIS)
 
     append_milestone_entry(ctx.file_path, ctx.log_date, entry_text, emoji)
 
     # Commit and push if we have a git repository backing the logs
-    log_repo_path = ctx.project.log_repo or ctx.config.global_log_repo
     if log_repo_path is not None:
         git_ops = GitOperations(log_repo_path)
         commit_message = (

@@ -71,6 +71,9 @@ def test_add_wtf_entry_adds_and_commits(tmp_path, monkeypatch, capsys):
         def __init__(self, path):
             recorded["git_path"] = path
 
+        def pull(self):
+            return True
+
         def commit_and_push(self, message: str):
             recorded["git_message"] = message
 
@@ -155,6 +158,9 @@ def test_add_wtf_entry_duplicate_does_not_save_or_commit(tmp_path, monkeypatch, 
     class DummyGitOperations:
         def __init__(self, path):
             recorded["git_path"] = path
+
+        def pull(self):
+            return True
 
         def commit_and_push(self, message: str):
             recorded["git_message"] = message

@@ -280,6 +280,7 @@ def test_commit_and_push_success(mock_run, tmp_path):
 
     # Mock git status to show changes
     mock_run.side_effect = [
+        MagicMock(),  # add .gitattributes (ensure_merge_driver)
         MagicMock(stdout="M  test.md"),  # status
         MagicMock(),  # add
         MagicMock(),  # commit
@@ -288,7 +289,7 @@ def test_commit_and_push_success(mock_run, tmp_path):
 
     update_log.commit_and_push(log_repo_path, "Test commit")
 
-    assert mock_run.call_count == 4
+    assert mock_run.call_count == 5
 
 
 @patch("subprocess.run")
@@ -433,6 +434,8 @@ def test_update_log_commit_uses_add_all(mock_run, tmp_path):
     current_file.write_text("# Current log\n## test-repo\n")
 
     # Mock git operations:
+    # - pull (before reading the log)
+    # - add .gitattributes (ensure_merge_driver, inside commit_and_push)
     # - status (for has_changes check)
     # - status (for add_all to get changes)
     # - add .md file(s)
@@ -440,6 +443,8 @@ def test_update_log_commit_uses_add_all(mock_run, tmp_path):
     # - push
     file_name = current_file.name
     mock_run.side_effect = [
+        MagicMock(),  # git pull --no-rebase
+        MagicMock(),  # git add .gitattributes
         MagicMock(
             stdout=f"M  {file_name}"
         ),  # status - has changes (for has_changes check)
