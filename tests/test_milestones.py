@@ -113,7 +113,10 @@ def test_add_milestone_entry_writes_entry_and_commits(tmp_path, monkeypatch):
         file_path=milestone_file,
     )
 
-    def fake_build_context() -> "stone.MilestoneContext":
+    def fake_resolve_project() -> tuple[object, object]:
+        return ctx.config, ctx.project
+
+    def fake_build_context(config: object, project: object) -> "stone.MilestoneContext":
         return ctx
 
     created: dict[str, object] = {}
@@ -130,6 +133,7 @@ def test_add_milestone_entry_writes_entry_and_commits(tmp_path, monkeypatch):
         def commit_and_push(self, message: str) -> None:
             created["message"] = message
 
+    monkeypatch.setattr(stone, "resolve_project", fake_resolve_project)
     monkeypatch.setattr(stone, "build_milestone_context", fake_build_context)
     monkeypatch.setattr(stone, "GitOperations", DummyGitOperations)
     monkeypatch.setattr(stone.random, "choice", lambda seq: "🎯")
@@ -164,7 +168,8 @@ def test_add_milestone_entry_without_log_repo_does_not_commit(tmp_path, monkeypa
         file_path=milestone_file,
     )
 
-    monkeypatch.setattr(stone, "build_milestone_context", lambda: ctx)
+    monkeypatch.setattr(stone, "resolve_project", lambda: (ctx.config, ctx.project))
+    monkeypatch.setattr(stone, "build_milestone_context", lambda config, project: ctx)
 
     called = {"init": False}
 
@@ -280,8 +285,45 @@ def test_append_milestone_entry_adds_newline_if_missing(tmp_path):
     assert "- 🎯 2026-03-09: First big win\n- 🚀 2026-03-10: Second big win" in content
 
 
-def test_build_milestone_context_uses_loaded_config_and_project(tmp_path, monkeypatch):
-    """build_milestone_context wires together config, project and path."""
+def test_resolve_project_uses_loaded_config_and_project(monkeypatch):
+    """resolve_project loads config and finds the project for the cwd."""
+    import src.stone as stone
+
+    dummy_config = object()
+
+    class DummyProject:
+        def __init__(self) -> None:
+            self.name = "test-project"
+            self.log_repo = None
+
+    dummy_project = DummyProject()
+    recorded: dict[str, object] = {}
+
+    def fake_load_config():
+        return dummy_config
+
+    class DummyProjectFinder:
+        def __init__(self, cfg) -> None:
+            recorded["config"] = cfg
+
+        def find_project(self, root: str):
+            recorded["root"] = root
+            return dummy_project
+
+    monkeypatch.setattr(stone, "load_config", fake_load_config)
+    monkeypatch.setattr(stone, "ProjectFinder", DummyProjectFinder)
+
+    config, project = stone.resolve_project()
+
+    assert config is dummy_config
+    assert project is dummy_project
+    assert recorded["config"] is dummy_config
+
+
+def test_build_milestone_context_wires_config_and_project_to_path(
+    tmp_path, monkeypatch
+):
+    """build_milestone_context computes today's date and the file path."""
     import src.stone as stone
 
     dummy_config = object()
@@ -297,17 +339,6 @@ def test_build_milestone_context_uses_loaded_config_and_project(tmp_path, monkey
 
     recorded: dict[str, object] = {}
 
-    def fake_load_config():
-        return dummy_config
-
-    class DummyProjectFinder:
-        def __init__(self, cfg) -> None:
-            recorded["config"] = cfg
-
-        def find_project(self, root: str):
-            recorded["root"] = root
-            return dummy_project
-
     def fake_get_milestone_file_path(config, project, log_date):
         recorded["file_args"] = (config, project, log_date)
         return milestone_path
@@ -317,15 +348,55 @@ def test_build_milestone_context_uses_loaded_config_and_project(tmp_path, monkey
         def today():
             return fixed_date
 
-    monkeypatch.setattr(stone, "load_config", fake_load_config)
-    monkeypatch.setattr(stone, "ProjectFinder", DummyProjectFinder)
     monkeypatch.setattr(stone, "get_milestone_file_path", fake_get_milestone_file_path)
     monkeypatch.setattr(stone, "date", DummyDate)
 
-    ctx = stone.build_milestone_context()
+    ctx = stone.build_milestone_context(dummy_config, dummy_project)
 
     assert ctx.config is dummy_config
     assert ctx.project is dummy_project
     assert ctx.log_date == fixed_date
     assert ctx.file_path == milestone_path
     assert recorded["file_args"] == (dummy_config, dummy_project, fixed_date)
+
+
+def test_add_milestone_entry_uses_year_dir_pulled_from_remote(tmp_path, monkeypatch):
+    """A rollover pulled from the remote must be reflected in the destination path.
+
+    Regression test for the multi-machine scenario: machine A creates and
+    pushes a <year>/ directory; machine B hasn't pulled yet, so the
+    directory doesn't exist locally until pull() runs. The path decision
+    must happen after the pull, not before, or the entry forks into the
+    stale flat milestone.md.
+    """
+    import src.stone as stone
+
+    config, project = _make_project(tmp_path)
+    base_dir = config.global_log_repo / project.name  # type: ignore[operator]
+    year_dir = base_dir / str(date.today().year)
+
+    def fake_resolve_project():
+        return config, project
+
+    class FakeGitOperations:
+        def __init__(self, path) -> None:
+            self.path = path
+
+        def pull(self) -> bool:
+            # Simulate the remote rollover directory arriving via pull.
+            year_dir.mkdir(parents=True, exist_ok=True)
+            return True
+
+        def commit_and_push(self, message: str) -> None:
+            pass
+
+    monkeypatch.setattr(stone, "resolve_project", fake_resolve_project)
+    monkeypatch.setattr(stone, "GitOperations", FakeGitOperations)
+    monkeypatch.setattr(stone.random, "choice", lambda seq: "🎯")
+
+    assert not year_dir.exists()
+
+    stone.add_milestone_entry("Big win")
+
+    assert (year_dir / "milestone.md").exists()
+    assert not (base_dir / "milestone.md").exists()
