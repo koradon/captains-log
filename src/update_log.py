@@ -152,6 +152,12 @@ def main():
         log_manager = LogManager(config)
         log_info = log_manager.get_log_file_info(project)
 
+        # Pull remote changes before reading the log, so a push made from
+        # another machine (or directly on GitHub) is already reflected in
+        # what we load and merge into below.
+        if log_info.has_git_repo and log_info.log_repo_path:
+            GitOperations(log_info.log_repo_path).pull()
+
         # Load existing log data
         log_data = log_manager.load_log(log_info)
 

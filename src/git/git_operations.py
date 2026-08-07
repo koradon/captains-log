@@ -7,6 +7,15 @@ from pathlib import Path
 class GitOperations:
     """Handles git operations for the log repository."""
 
+    # How many times to pull-and-retry a rejected push before giving up.
+    MAX_PUSH_RETRIES = 3
+
+    # Git attribute that makes concurrent same-section appends to the log's
+    # markdown files merge cleanly (keep every unique line from both sides)
+    # instead of producing conflict markers, since entries are always
+    # appended and never edited in place.
+    MERGE_UNION_ATTRIBUTE = "*.md merge=union"
+
     def __init__(self, repo_path: Path):
         """Initialize with repository path.
 
@@ -247,6 +256,81 @@ class GitOperations:
         except subprocess.CalledProcessError:
             return False
 
+    def pull(self) -> bool:
+        """Pull changes from the remote, merging into the current branch.
+
+        Uses a plain merge (not rebase): on conflict the working tree is left
+        in a normal "unmerged" state that a clean `git merge --abort` can
+        always recover from, which matters since this runs unattended from a
+        git hook. If a conflict happens anyway, the merge is aborted so we
+        never leave conflict markers sitting in a log file.
+
+        Returns:
+            True if the pull succeeded (including a no-op pull), False if
+            there was nothing to pull from (no remote/offline) or a conflict
+            had to be aborted.
+        """
+        try:
+            subprocess.run(
+                ["git", "-C", str(self.repo_path), "pull", "--no-rebase"],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            return True
+        except subprocess.CalledProcessError as e:
+            output = f"{e.stdout or ''}{e.stderr or ''}"
+            if "CONFLICT" in output:
+                subprocess.run(
+                    ["git", "-C", str(self.repo_path), "merge", "--abort"],
+                    capture_output=True,
+                    text=True,
+                )
+                print(
+                    "Warning: Pull produced a merge conflict, aborted the merge. "
+                    "Resolve manually by running 'git pull' in the log repository."
+                )
+            else:
+                print(f"Warning: Failed to pull changes: {e.stderr or e}")
+            return False
+
+    def ensure_merge_driver(self) -> bool:
+        """Ensure the log repo's .gitattributes enables union merging for .md files.
+
+        Committing this once (and letting it propagate to every machine via
+        the log repo itself) means concurrent appends to the same day's file
+        from two machines merge automatically instead of conflicting.
+
+        Returns:
+            True if .gitattributes was created or updated, False if it
+            already had the attribute or couldn't be read/written.
+        """
+        gitattributes_path = self.repo_path / ".gitattributes"
+        try:
+            existing = (
+                gitattributes_path.read_text(encoding="utf-8")
+                if gitattributes_path.exists()
+                else ""
+            )
+        except OSError:
+            return False
+
+        if self.MERGE_UNION_ATTRIBUTE in existing:
+            return False
+
+        new_content = existing
+        if new_content and not new_content.endswith("\n"):
+            new_content += "\n"
+        new_content += self.MERGE_UNION_ATTRIBUTE + "\n"
+
+        try:
+            gitattributes_path.write_text(new_content, encoding="utf-8")
+        except OSError:
+            return False
+
+        self.add_file(gitattributes_path)
+        return True
+
     def commit_and_push(self, commit_message: str) -> bool:
         """Perform the complete commit and push workflow.
 
@@ -261,6 +345,8 @@ class GitOperations:
             if self.has_lock_files():
                 print("Warning: Git lock files found, skipping operations")
                 return False
+
+            self.ensure_merge_driver()
 
             # Check if there are any changes to commit
             if not self.has_changes():
@@ -277,13 +363,23 @@ class GitOperations:
                 print("Warning: Failed to commit changes")
                 return False
 
-            # Push
-            if not self.push():
-                print("Warning: Failed to push changes")
-                return False
+            # Push, retrying with a pull in between if the remote moved on
+            if self.push():
+                print("Successfully committed and pushed log updates")
+                return True
 
-            print("Successfully committed and pushed log updates")
-            return True
+            for attempt in range(1, self.MAX_PUSH_RETRIES + 1):
+                print(
+                    f"Warning: Push rejected, pulling and retrying "
+                    f"({attempt}/{self.MAX_PUSH_RETRIES})..."
+                )
+                self.pull()
+                if self.push():
+                    print("Successfully committed and pushed log updates")
+                    return True
+
+            print("Warning: Failed to push changes")
+            return False
 
         except Exception as e:
             print(f"Warning: Unexpected error during git operations: {e}")

@@ -124,6 +124,9 @@ def test_add_milestone_entry_writes_entry_and_commits(tmp_path, monkeypatch):
 
             created["path"] = _Path(path)
 
+        def pull(self) -> bool:
+            return True
+
         def commit_and_push(self, message: str) -> None:
             created["message"] = message
 

@@ -159,3 +159,10 @@ Thumbs.db
 
 # Planhub
 .plan/
+
+# Lavish
+.lavish/
+
+# Mempalace
+mempalace.yaml
+entities.json

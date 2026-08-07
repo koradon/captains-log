@@ -113,10 +113,16 @@ def add_milestone_entry(entry_text: str) -> None:
     ctx = build_milestone_context()
     emoji = random.choice(EMOJIS)
 
+    # Pull remote changes before reading the milestone file, so a push made
+    # from another machine (or directly on GitHub) is already reflected in
+    # what we read and append to below.
+    log_repo_path = ctx.project.log_repo or ctx.config.global_log_repo
+    if log_repo_path is not None:
+        GitOperations(log_repo_path).pull()
+
     append_milestone_entry(ctx.file_path, ctx.log_date, entry_text, emoji)
 
     # Commit and push if we have a git repository backing the logs
-    log_repo_path = ctx.project.log_repo or ctx.config.global_log_repo
     if log_repo_path is not None:
         git_ops = GitOperations(log_repo_path)
         commit_message = (

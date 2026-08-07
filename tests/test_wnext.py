@@ -205,6 +205,9 @@ def test_add_what_next_entry_adds_and_commits(tmp_path, monkeypatch, capsys):
         def __init__(self, path):
             recorded["git_path"] = path
 
+        def pull(self):
+            return True
+
         def commit_and_push(self, message: str):
             recorded["git_message"] = message
 
@@ -307,6 +310,9 @@ def test_add_what_next_entry_with_other_section(tmp_path, monkeypatch, capsys):
     class DummyGitOperations:
         def __init__(self, path):
             recorded["git_path"] = path
+
+        def pull(self):
+            return True
 
         def commit_and_push(self, message: str):
             recorded["git_message"] = message
@@ -414,6 +420,9 @@ def test_add_what_next_entry_duplicate_does_not_save_or_commit(
     class DummyGitOperations:
         def __init__(self, path):
             recorded["git_path"] = path
+
+        def pull(self):
+            return True
 
         def commit_and_push(self, message: str):
             recorded["git_message"] = message
