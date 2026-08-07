@@ -60,9 +60,12 @@ Each is a small package with a `*_models.py` (dataclasses) and the logic that op
 - `projects/` — `ProjectFinder` maps a repo path to a `ProjectInfo` by matching configured
   project roots (supports nested repos), falling back to the repo directory name when
   unconfigured.
-- `git/` — `GitOperations` (commit/push to the log repo) and `CommitParser` (parses commit
-  entries, decides whether a commit should be skipped — e.g. invalid SHA or running from
-  inside the log repo itself).
+- `git/` — `GitOperations` (pull/commit/push to the log repo — `pull()` aborts cleanly on a
+  real merge conflict, `commit_and_push()` retries push up to `MAX_PUSH_RETRIES` times by
+  pulling in between if the remote has moved on, and `ensure_merge_driver()` commits a
+  `.gitattributes` union-merge rule for `*.md` so concurrent appends from other machines merge
+  without conflicts) and `CommitParser` (parses commit entries, decides whether a commit
+  should be skipped — e.g. invalid SHA or running from inside the log repo itself).
 - `entries/` — `EntryProcessor`/`EntryFormatter` turn a commit or manual note into a formatted
   markdown line, dedupe entries with the same message but different SHA (amended commits), and
   order the "other" section last.
@@ -73,8 +76,11 @@ Each is a small package with a `*_models.py` (dataclasses) and the logic that op
 
 Flow for a commit: `update_log.py` → `load_config()` → `CommitParser.should_skip_commit()` →
 `ProjectFinder.find_project()` (bail if `project.is_private`) → `LogManager.get_log_file_info()`
-+ `load_log()` → `EntryProcessor.update_commit_entries()` → `LogManager.save_log()` →
-`GitOperations.commit_and_push()` if the log lives in a git repo.
+→ `GitOperations.pull()` (if the log lives in a git repo) → `load_log()` →
+`EntryProcessor.update_commit_entries()` → `LogManager.save_log()` →
+`GitOperations.commit_and_push()` if the log lives in a git repo. `wtf.py`, `wnext.py`, and
+`stone.py` follow the same pull-before-read, save-then-commit-and-push pattern, since all four
+commands share the same log repo across machines.
 
 ### Log file format
 
