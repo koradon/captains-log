@@ -78,6 +78,45 @@ def test_project_finder_find_project_fallback_to_repo_name():
     assert project.config.root == Path("/path/to/my-repo").resolve()
 
 
+def test_project_finder_find_project_nested_repo_checked_out_elsewhere(tmp_path):
+    """Test that a repo nested under an umbrella project root is still
+    grouped under that project even when checked out somewhere else
+    entirely (e.g. a treehouse/pooled worktree that never lives under the
+    configured root), as long as its directory name matches one of root's
+    own nested git repos.
+    """
+    root = tmp_path / "tripper"
+    (root / "facts-service" / ".git").mkdir(parents=True)
+
+    elsewhere = tmp_path / "elsewhere" / "facts-service"
+    (elsewhere / ".git").mkdir(parents=True)
+
+    config = Config.from_dict({"projects": {"tripper": {"root": str(root)}}})
+    finder = ProjectFinder(config)
+
+    project = finder.find_project(str(elsewhere))
+
+    assert project.name == "tripper"
+
+
+def test_project_finder_find_project_unrelated_name_not_grouped(tmp_path):
+    """Test that a repo whose name doesn't match any nested repo under root
+    still falls back to its own name, rather than being grouped by mistake.
+    """
+    root = tmp_path / "tripper"
+    (root / "facts-service" / ".git").mkdir(parents=True)
+
+    unrelated = tmp_path / "elsewhere" / "some-other-repo"
+    (unrelated / ".git").mkdir(parents=True)
+
+    config = Config.from_dict({"projects": {"tripper": {"root": str(root)}}})
+    finder = ProjectFinder(config)
+
+    project = finder.find_project(str(unrelated))
+
+    assert project.name == "some-other-repo"
+
+
 def test_project_finder_find_project_none_root():
     """Test handling of None root in project config."""
     config = Config.from_dict(

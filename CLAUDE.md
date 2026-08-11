@@ -58,8 +58,9 @@ Each is a small package with a `*_models.py` (dataclasses) and the logic that op
   tree. `ProjectConfig.is_private()` checks the `CAPTAINS_LOG_PRIVATE` env var before falling
   back to the config file's `private:` flag (env > config > default).
 - `projects/` — `ProjectFinder` maps a repo path to a `ProjectInfo` by matching configured
-  project roots (supports nested repos), falling back to the repo directory name when
-  unconfigured.
+  project roots (supports nested repos, and a repo checked out elsewhere entirely — e.g. a
+  pooled worktree — still groups under an umbrella root if its directory name matches one of
+  that root's own nested repos), falling back to the repo directory name when unconfigured.
 - `git/` — `GitOperations` (pull/commit/push to the log repo — `pull()` aborts cleanly on a
   real merge conflict, `commit_and_push()` retries push up to `MAX_PUSH_RETRIES` times by
   pulling in between if the remote has moved on, and `ensure_merge_driver()` commits a
