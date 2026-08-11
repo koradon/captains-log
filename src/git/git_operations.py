@@ -10,7 +10,12 @@ from pathlib import Path
 # for a repo and does not override an already-set GIT_DIR/GIT_INDEX_FILE, so
 # without stripping these, git commands "targeting" the log repo actually
 # operate on whichever repo/worktree triggered the hook.
-_GIT_ENV_VARS_TO_STRIP = ("GIT_DIR", "GIT_INDEX_FILE", "GIT_WORK_TREE", "GIT_COMMON_DIR")
+_GIT_ENV_VARS_TO_STRIP = (
+    "GIT_DIR",
+    "GIT_INDEX_FILE",
+    "GIT_WORK_TREE",
+    "GIT_COMMON_DIR",
+)
 
 
 class GitOperations:

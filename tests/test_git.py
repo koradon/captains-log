@@ -198,7 +198,9 @@ def test_git_operations_push_error(mock_run, tmp_path):
 
 
 @patch("subprocess.run")
-def test_git_operations_strips_inherited_worktree_git_env(mock_run, tmp_path, monkeypatch):
+def test_git_operations_strips_inherited_worktree_git_env(
+    mock_run, tmp_path, monkeypatch
+):
     """Test that GIT_DIR/GIT_INDEX_FILE/etc. leaked from an outer git hook
     (e.g. a commit made inside a git worktree) don't override which repo a
     git command actually targets, since `-C` alone doesn't take precedence
