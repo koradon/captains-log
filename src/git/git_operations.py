@@ -1,7 +1,16 @@
 """Git operations for Captain's Log."""
 
+import os
 import subprocess
 from pathlib import Path
+
+# Git points these at the invoking repository (and, from a worktree, at its
+# private worktree gitdir/index) via the environment for the whole duration
+# of a hook. `git -C <other_repo>` only changes the directory used to search
+# for a repo and does not override an already-set GIT_DIR/GIT_INDEX_FILE, so
+# without stripping these, git commands "targeting" the log repo actually
+# operate on whichever repo/worktree triggered the hook.
+_GIT_ENV_VARS_TO_STRIP = ("GIT_DIR", "GIT_INDEX_FILE", "GIT_WORK_TREE", "GIT_COMMON_DIR")
 
 
 class GitOperations:
@@ -24,6 +33,19 @@ class GitOperations:
         """
         self.repo_path = repo_path
 
+    def _run_git(self, args: list, **kwargs) -> subprocess.CompletedProcess:
+        """Run a git command scoped to repo_path, immune to inherited repo env vars.
+
+        Args:
+            args: Arguments to pass after "git" (e.g. ["-C", path, "status"])
+            **kwargs: Additional keyword arguments for subprocess.run
+
+        Returns:
+            The completed process
+        """
+        env = {k: v for k, v in os.environ.items() if k not in _GIT_ENV_VARS_TO_STRIP}
+        return subprocess.run(["git"] + args, env=env, **kwargs)
+
     def has_changes(self) -> bool:
         """Check if there are any uncommitted changes in the repository.
 
@@ -31,8 +53,8 @@ class GitOperations:
             True if there are changes, False otherwise
         """
         try:
-            result = subprocess.run(
-                ["git", "-C", str(self.repo_path), "status", "--porcelain"],
+            result = self._run_git(
+                ["-C", str(self.repo_path), "status", "--porcelain"],
                 capture_output=True,
                 text=True,
                 check=True,
@@ -65,8 +87,8 @@ class GitOperations:
         """
         try:
             relative_path = file_path.relative_to(self.repo_path)
-            subprocess.run(
-                ["git", "-C", str(self.repo_path), "add", str(relative_path)],
+            self._run_git(
+                ["-C", str(self.repo_path), "add", str(relative_path)],
                 check=True,
                 capture_output=True,
                 text=True,
@@ -92,8 +114,8 @@ class GitOperations:
             # Get list of changed files from git status
             # Note: git status --porcelain outputs all files (no truncation),
             # but subprocess.run with capture_output=True buffers all output in memory
-            status_result = subprocess.run(
-                ["git", "-C", str(self.repo_path), "status", "--porcelain"],
+            status_result = self._run_git(
+                ["-C", str(self.repo_path), "status", "--porcelain"],
                 check=True,
                 capture_output=True,
                 text=True,
@@ -187,8 +209,8 @@ class GitOperations:
                         # Add individually if batch would be too long or only one file
                         for path in batch:
                             try:
-                                subprocess.run(
-                                    ["git", "-C", str(self.repo_path), "add", path],
+                                self._run_git(
+                                    ["-C", str(self.repo_path), "add", path],
                                     check=True,
                                     capture_output=True,
                                     text=True,
@@ -201,8 +223,8 @@ class GitOperations:
                     else:
                         # Batch add multiple files at once
                         try:
-                            subprocess.run(
-                                ["git", "-C", str(self.repo_path), "add"] + batch,
+                            self._run_git(
+                                ["-C", str(self.repo_path), "add"] + batch,
                                 check=True,
                                 capture_output=True,
                                 text=True,
@@ -229,8 +251,8 @@ class GitOperations:
             True if successful, False otherwise
         """
         try:
-            subprocess.run(
-                ["git", "-C", str(self.repo_path), "commit", "-m", message],
+            self._run_git(
+                ["-C", str(self.repo_path), "commit", "-m", message],
                 check=True,
                 capture_output=True,
                 text=True,
@@ -246,8 +268,8 @@ class GitOperations:
             True if successful, False otherwise
         """
         try:
-            subprocess.run(
-                ["git", "-C", str(self.repo_path), "push"],
+            self._run_git(
+                ["-C", str(self.repo_path), "push"],
                 check=True,
                 capture_output=True,
                 text=True,
@@ -271,8 +293,8 @@ class GitOperations:
             had to be aborted.
         """
         try:
-            subprocess.run(
-                ["git", "-C", str(self.repo_path), "pull", "--no-rebase"],
+            self._run_git(
+                ["-C", str(self.repo_path), "pull", "--no-rebase"],
                 check=True,
                 capture_output=True,
                 text=True,
@@ -281,8 +303,8 @@ class GitOperations:
         except subprocess.CalledProcessError as e:
             output = f"{e.stdout or ''}{e.stderr or ''}"
             if "CONFLICT" in output:
-                subprocess.run(
-                    ["git", "-C", str(self.repo_path), "merge", "--abort"],
+                self._run_git(
+                    ["-C", str(self.repo_path), "merge", "--abort"],
                     capture_output=True,
                     text=True,
                 )
