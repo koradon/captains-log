@@ -1,7 +1,7 @@
 """Tests for the git module."""
 
 import subprocess
-from unittest.mock import MagicMock, patch
+from unittest.mock import ANY, MagicMock, patch
 
 from src.git import CommitParser, GitOperations
 
@@ -198,6 +198,30 @@ def test_git_operations_push_error(mock_run, tmp_path):
 
 
 @patch("subprocess.run")
+def test_git_operations_strips_inherited_worktree_git_env(
+    mock_run, tmp_path, monkeypatch
+):
+    """Test that GIT_DIR/GIT_INDEX_FILE/etc. leaked from an outer git hook
+    (e.g. a commit made inside a git worktree) don't override which repo a
+    git command actually targets, since `-C` alone doesn't take precedence
+    over an already-set GIT_DIR/GIT_INDEX_FILE.
+    """
+    monkeypatch.setenv("GIT_DIR", "/some/other/repo/.git/worktrees/wt")
+    monkeypatch.setenv("GIT_INDEX_FILE", "/some/other/repo/.git/worktrees/wt/index")
+    monkeypatch.setenv("GIT_WORK_TREE", "/some/other/repo")
+    monkeypatch.setenv("GIT_COMMON_DIR", "/some/other/repo/.git")
+
+    repo_path = tmp_path / "repo"
+    git_ops = GitOperations(repo_path)
+
+    git_ops.push()
+
+    env_used = mock_run.call_args.kwargs["env"]
+    for leaked_var in ("GIT_DIR", "GIT_INDEX_FILE", "GIT_WORK_TREE", "GIT_COMMON_DIR"):
+        assert leaked_var not in env_used
+
+
+@patch("subprocess.run")
 def test_git_operations_pull_success(mock_run, tmp_path):
     """Test a successful pull (including the no-op / already-up-to-date case)."""
     repo_path = tmp_path / "repo"
@@ -206,6 +230,7 @@ def test_git_operations_pull_success(mock_run, tmp_path):
     assert git_ops.pull() is True
     mock_run.assert_called_once_with(
         ["git", "-C", str(repo_path), "pull", "--no-rebase"],
+        env=ANY,
         check=True,
         capture_output=True,
         text=True,
@@ -429,6 +454,7 @@ def test_git_operations_add_all_success(mock_run, tmp_path):
     # Verify status was called first
     mock_run.assert_any_call(
         ["git", "-C", str(repo_path), "status", "--porcelain"],
+        env=ANY,
         check=True,
         capture_output=True,
         text=True,

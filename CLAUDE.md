@@ -58,14 +58,19 @@ Each is a small package with a `*_models.py` (dataclasses) and the logic that op
   tree. `ProjectConfig.is_private()` checks the `CAPTAINS_LOG_PRIVATE` env var before falling
   back to the config file's `private:` flag (env > config > default).
 - `projects/` — `ProjectFinder` maps a repo path to a `ProjectInfo` by matching configured
-  project roots (supports nested repos), falling back to the repo directory name when
-  unconfigured.
-- `git/` — `GitOperations` (pull/commit/push to the log repo — `pull()` aborts cleanly on a
-  real merge conflict, `commit_and_push()` retries push up to `MAX_PUSH_RETRIES` times by
-  pulling in between if the remote has moved on, and `ensure_merge_driver()` commits a
-  `.gitattributes` union-merge rule for `*.md` so concurrent appends from other machines merge
-  without conflicts) and `CommitParser` (parses commit entries, decides whether a commit
-  should be skipped — e.g. invalid SHA or running from inside the log repo itself).
+  project roots (supports nested repos, and a repo checked out elsewhere entirely — e.g. a
+  pooled worktree — still groups under an umbrella root if its directory name matches one of
+  that root's own nested repos and the two checkouts agree on their origin remote whenever
+  both expose one), falling back to the repo directory name when unconfigured.
+- `git/` — `GitOperations` runs every git command through `_run_git()`, which strips
+  `GIT_DIR`/`GIT_INDEX_FILE`/`GIT_WORK_TREE`/`GIT_COMMON_DIR` from the subprocess environment
+  so a hook invoked from inside another repo's worktree can't leak into which repo `-C`
+  targets (pull/commit/push to the log repo — `pull()` aborts cleanly on a real merge
+  conflict, `commit_and_push()` retries push up to `MAX_PUSH_RETRIES` times by pulling in
+  between if the remote has moved on, and `ensure_merge_driver()` commits a `.gitattributes`
+  union-merge rule for `*.md` so concurrent appends from other machines merge without
+  conflicts) and `CommitParser` (parses commit entries, decides whether a commit should be
+  skipped — e.g. invalid SHA or running from inside the log repo itself).
 - `entries/` — `EntryProcessor`/`EntryFormatter` turn a commit or manual note into a formatted
   markdown line, dedupe entries with the same message but different SHA (amended commits), and
   order the "other" section last.
