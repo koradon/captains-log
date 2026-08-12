@@ -99,6 +99,34 @@ def test_project_finder_find_project_nested_repo_checked_out_elsewhere(tmp_path)
     assert project.name == "tripper"
 
 
+def test_project_finder_find_project_same_name_different_remote_not_grouped(tmp_path):
+    """Test that a same-named repo checked out elsewhere is NOT grouped
+    under root's project when the two repos have conflicting origin
+    remotes, since that indicates they are unrelated repos that happen to
+    share a common directory name (e.g. "docs", "api").
+    """
+    root = tmp_path / "tripper"
+    nested_git = root / "facts-service" / ".git"
+    nested_git.mkdir(parents=True)
+    (nested_git / "config").write_text(
+        '[remote "origin"]\n\turl = git@github.com:tripper-org/facts-service.git\n'
+    )
+
+    elsewhere = tmp_path / "elsewhere" / "facts-service"
+    elsewhere_git = elsewhere / ".git"
+    elsewhere_git.mkdir(parents=True)
+    (elsewhere_git / "config").write_text(
+        '[remote "origin"]\n\turl = git@github.com:someone-else/facts-service.git\n'
+    )
+
+    config = Config.from_dict({"projects": {"tripper": {"root": str(root)}}})
+    finder = ProjectFinder(config)
+
+    project = finder.find_project(str(elsewhere))
+
+    assert project.name == "facts-service"
+
+
 def test_project_finder_find_project_unrelated_name_not_grouped(tmp_path):
     """Test that a repo whose name doesn't match any nested repo under root
     still falls back to its own name, rather than being grouped by mistake.

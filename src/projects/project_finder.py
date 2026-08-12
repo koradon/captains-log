@@ -1,5 +1,6 @@
 """Project discovery functionality for Captain's Log."""
 
+import configparser
 from pathlib import Path
 from typing import Optional
 
@@ -42,7 +43,14 @@ class ProjectFinder:
             # root's own nested repos, so umbrella dirs like
             # ~/git/tripper/{facts-service,tripper-android-app} keep
             # grouping under "tripper" even when checked out elsewhere.
-            if repo_path_abs.name in self._nested_repo_names(root_abs):
+            # Matching by name alone would silently misattribute an
+            # unrelated repo that happens to share a common name (e.g.
+            # "docs" or "api"), so we also require the two checkouts to
+            # agree on their origin remote whenever both expose one.
+            nested_repo = root_abs / repo_path_abs.name
+            if (nested_repo / ".git").exists() and self._same_remote(
+                repo_path_abs, nested_repo
+            ):
                 return ProjectInfo(
                     name=project_name, config=project_config, base_dir=root_abs
                 )
@@ -55,23 +63,52 @@ class ProjectFinder:
             name=project_name, config=fallback_config, base_dir=repo_path_abs
         )
 
-    def _nested_repo_names(self, root: Path) -> set:
-        """Get the names of git repositories directly nested under root.
+    def _same_remote(self, repo_a: Path, repo_b: Path) -> bool:
+        """Check whether two repos agree on their git origin remote.
+
+        Repos with no resolvable remote (e.g. never pushed, or a local-only
+        checkout) are treated as matching, since name-based matching is the
+        best signal available for them. Repos that both expose a remote
+        must agree, so two unrelated repos sharing a common directory name
+        (e.g. "docs", "api") aren't silently merged into the same project.
 
         Args:
-            root: Directory to scan for nested git repositories
+            repo_a: First repository directory
+            repo_b: Second repository directory
 
         Returns:
-            Set of directory names (under root) that are themselves git repos
+            True if the repos are the same project by remote (or lack
+            enough information to tell them apart), False if they have
+            conflicting remotes
         """
-        if not root.is_dir():
-            return set()
+        remote_a = self._git_remote_url(repo_a)
+        remote_b = self._git_remote_url(repo_b)
 
-        return {
-            child.name
-            for child in root.iterdir()
-            if child.is_dir() and (child / ".git").exists()
-        }
+        if remote_a is None or remote_b is None:
+            return True
+
+        return remote_a == remote_b
+
+    def _git_remote_url(self, repo: Path) -> Optional[str]:
+        """Read the "origin" remote URL from a repo's git config, if any.
+
+        Args:
+            repo: Path to the git repository (containing a `.git` dir)
+
+        Returns:
+            The origin remote URL, or None if unavailable
+        """
+        config_path = repo / ".git" / "config"
+        if not config_path.is_file():
+            return None
+
+        parser = configparser.ConfigParser()
+        try:
+            parser.read(config_path)
+        except configparser.Error:
+            return None
+
+        return parser.get('remote "origin"', "url", fallback=None)
 
     def get_project_by_name(self, project_name: str) -> Optional[ProjectInfo]:
         """Get project information by name.
