@@ -246,6 +246,214 @@ def test_project_finder_find_project_unrelated_name_not_grouped(tmp_path):
     assert project.name == "some-other-repo"
 
 
+def test_project_finder_find_project_missing_git_falls_back_to_name_match(tmp_path):
+    """Test that when the 'elsewhere' checkout has no `.git` at all (can't
+    happen from a real git hook, but exercises the defensive path), remote
+    resolution yields None and matching falls back to name alone.
+    """
+    root = tmp_path / "tripper"
+    nested_git = root / "facts-service" / ".git"
+    nested_git.mkdir(parents=True)
+    (nested_git / "config").write_text(
+        '[remote "origin"]\n\turl = git@github.com:tripper-org/facts-service.git\n'
+    )
+
+    elsewhere = tmp_path / "elsewhere" / "facts-service"
+    elsewhere.mkdir(parents=True)  # no .git at all
+
+    config = Config.from_dict({"projects": {"tripper": {"root": str(root)}}})
+    finder = ProjectFinder(config)
+
+    project = finder.find_project(str(elsewhere))
+
+    assert project.name == "tripper"
+
+
+def test_project_finder_find_project_malformed_gitdir_file_falls_back_to_name_match(
+    tmp_path,
+):
+    """Test that a `.git` file whose content doesn't start with "gitdir:"
+    (a corrupt/unrecognized worktree pointer) fails open to name matching
+    instead of raising.
+    """
+    root = tmp_path / "tripper"
+    nested_git = root / "facts-service" / ".git"
+    nested_git.mkdir(parents=True)
+    (nested_git / "config").write_text(
+        '[remote "origin"]\n\turl = git@github.com:tripper-org/facts-service.git\n'
+    )
+
+    elsewhere = tmp_path / "elsewhere" / "facts-service"
+    elsewhere.mkdir(parents=True)
+    (elsewhere / ".git").write_text("not a valid gitdir pointer\n")
+
+    config = Config.from_dict({"projects": {"tripper": {"root": str(root)}}})
+    finder = ProjectFinder(config)
+
+    project = finder.find_project(str(elsewhere))
+
+    assert project.name == "tripper"
+
+
+def test_project_finder_find_project_unreadable_gitdir_file_falls_back_to_name_match(
+    tmp_path,
+):
+    """Test that an OSError while reading the `.git` file (e.g. a
+    permissions problem) fails open to name matching instead of raising.
+    """
+    root = tmp_path / "tripper"
+    nested_git = root / "facts-service" / ".git"
+    nested_git.mkdir(parents=True)
+    (nested_git / "config").write_text(
+        '[remote "origin"]\n\turl = git@github.com:tripper-org/facts-service.git\n'
+    )
+
+    elsewhere = tmp_path / "elsewhere" / "facts-service"
+    elsewhere.mkdir(parents=True)
+    dot_git = elsewhere / ".git"
+    dot_git.write_text("gitdir: /wherever\n")
+
+    config = Config.from_dict({"projects": {"tripper": {"root": str(root)}}})
+    finder = ProjectFinder(config)
+
+    original_read_text = Path.read_text
+
+    def flaky_read_text(self, *args, **kwargs):
+        if self == dot_git:
+            raise OSError("permission denied")
+        return original_read_text(self, *args, **kwargs)
+
+    with patch.object(Path, "read_text", flaky_read_text):
+        project = finder.find_project(str(elsewhere))
+
+    assert project.name == "tripper"
+
+
+def test_project_finder_find_project_malformed_config_falls_back_to_name_match(
+    tmp_path,
+):
+    """Test that a git config file that isn't valid INI (raises
+    configparser.Error) fails open to name matching instead of raising.
+    """
+    root = tmp_path / "tripper"
+    nested_git = root / "facts-service" / ".git"
+    nested_git.mkdir(parents=True)
+    # A line before any section header is invalid INI syntax.
+    (nested_git / "config").write_text(
+        "url = git@github.com:tripper-org/facts-service.git\n"
+    )
+
+    elsewhere = tmp_path / "elsewhere" / "facts-service"
+    (elsewhere / ".git").mkdir(parents=True)
+
+    config = Config.from_dict({"projects": {"tripper": {"root": str(root)}}})
+    finder = ProjectFinder(config)
+
+    project = finder.find_project(str(elsewhere))
+
+    assert project.name == "tripper"
+
+
+def test_project_finder_find_project_worktree_gitdir_without_commondir(tmp_path):
+    """Test that a worktree gitdir with no `commondir` file (e.g. a
+    non-standard or hand-rolled worktree) reads `config` directly from the
+    worktree gitdir itself, rather than erroring, and remote comparison
+    still works from there.
+    """
+    root = tmp_path / "tripper"
+    nested_git = root / "facts-service" / ".git"
+    nested_git.mkdir(parents=True)
+    (nested_git / "config").write_text(
+        '[remote "origin"]\n\turl = git@github.com:tripper-org/facts-service.git\n'
+    )
+
+    elsewhere = tmp_path / "elsewhere" / "facts-service"
+    worktree_git_dir = tmp_path / "standalone-worktree-gitdir"
+    worktree_git_dir.mkdir(parents=True)
+    # No commondir file - config lives directly in the worktree gitdir.
+    (worktree_git_dir / "config").write_text(
+        '[remote "origin"]\n\turl = git@github.com:tripper-org/facts-service.git\n'
+    )
+    elsewhere.mkdir(parents=True)
+    (elsewhere / ".git").write_text(f"gitdir: {worktree_git_dir}\n")
+
+    config = Config.from_dict({"projects": {"tripper": {"root": str(root)}}})
+    finder = ProjectFinder(config)
+
+    project = finder.find_project(str(elsewhere))
+
+    assert project.name == "tripper"
+
+
+def test_project_finder_find_project_relative_gitdir_pointer_resolves(tmp_path):
+    """Test that a `.git` file with a *relative* `gitdir:` pointer (rather
+    than the absolute path real git worktrees normally write) is still
+    resolved correctly relative to the repo directory.
+    """
+    root = tmp_path / "tripper"
+    nested_git = root / "facts-service" / ".git"
+    nested_git.mkdir(parents=True)
+    (nested_git / "config").write_text(
+        '[remote "origin"]\n\turl = git@github.com:tripper-org/facts-service.git\n'
+    )
+
+    elsewhere = tmp_path / "elsewhere" / "facts-service"
+    elsewhere.mkdir(parents=True)
+    worktree_git_dir = elsewhere / "worktrees" / "facts-service"
+    worktree_git_dir.mkdir(parents=True)
+    (worktree_git_dir / "config").write_text(
+        '[remote "origin"]\n\turl = git@github.com:tripper-org/facts-service.git\n'
+    )
+    (elsewhere / ".git").write_text("gitdir: worktrees/facts-service\n")
+
+    config = Config.from_dict({"projects": {"tripper": {"root": str(root)}}})
+    finder = ProjectFinder(config)
+
+    project = finder.find_project(str(elsewhere))
+
+    assert project.name == "tripper"
+
+
+def test_project_finder_find_project_unreadable_commondir_falls_back_to_worktree_dir(
+    tmp_path,
+):
+    """Test that an OSError while reading the `commondir` file falls back
+    to treating the worktree gitdir itself as the git dir, rather than
+    raising.
+    """
+    root = tmp_path / "tripper"
+    nested_git = root / "facts-service" / ".git"
+    nested_git.mkdir(parents=True)
+    (nested_git / "config").write_text(
+        '[remote "origin"]\n\turl = git@github.com:tripper-org/facts-service.git\n'
+    )
+
+    elsewhere = tmp_path / "elsewhere" / "facts-service"
+    elsewhere.mkdir(parents=True)
+    worktree_git_dir = tmp_path / "standalone-worktree-gitdir"
+    worktree_git_dir.mkdir(parents=True)
+    commondir_file = worktree_git_dir / "commondir"
+    commondir_file.write_text("../..\n")
+    # No config reachable via the (unreadable) commondir, so remote
+    # resolution should fail open rather than raise.
+    (elsewhere / ".git").write_text(f"gitdir: {worktree_git_dir}\n")
+
+    config = Config.from_dict({"projects": {"tripper": {"root": str(root)}}})
+    finder = ProjectFinder(config)
+
+    original_read_text = Path.read_text
+
+    def flaky_read_text(self, *args, **kwargs):
+        if self == commondir_file:
+            raise OSError("permission denied")
+        return original_read_text(self, *args, **kwargs)
+
+    with patch.object(Path, "read_text", flaky_read_text):
+        project = finder.find_project(str(elsewhere))
+
+    assert project.name == "tripper"
+
+
 def test_project_finder_find_project_none_root():
     """Test handling of None root in project config."""
     config = Config.from_dict(
