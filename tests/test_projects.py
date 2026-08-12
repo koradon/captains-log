@@ -127,6 +127,107 @@ def test_project_finder_find_project_same_name_different_remote_not_grouped(tmp_
     assert project.name == "facts-service"
 
 
+def _make_worktree_checkout(worktree_dir, common_git_dir, remote_url):
+    """Simulate a `git worktree add` checkout: `.git` is a *file* with a
+    `gitdir:` pointer into `<common>/.git/worktrees/<name>`, which itself
+    has a `commondir` file pointing back at the shared `.git` directory
+    where `config` (and remotes) actually live.
+    """
+    worktree_name = worktree_dir.name
+    worktree_git_dir = common_git_dir / "worktrees" / worktree_name
+    worktree_git_dir.mkdir(parents=True)
+    (worktree_git_dir / "commondir").write_text("../..\n")
+
+    common_git_dir.mkdir(parents=True, exist_ok=True)
+    (common_git_dir / "config").write_text(f'[remote "origin"]\n\turl = {remote_url}\n')
+
+    worktree_dir.mkdir(parents=True, exist_ok=True)
+    (worktree_dir / ".git").write_text(f"gitdir: {worktree_git_dir}\n")
+
+
+def test_project_finder_find_project_pooled_worktree_same_remote_grouped(tmp_path):
+    """Test that a pooled/treehouse `git worktree` checkout (where `.git`
+    is a file, not a directory) is still correctly grouped under root's
+    project when its resolved remote matches the nested repo's remote.
+    """
+    root = tmp_path / "tripper"
+    nested_git = root / "facts-service" / ".git"
+    nested_git.mkdir(parents=True)
+    (nested_git / "config").write_text(
+        '[remote "origin"]\n\turl = git@github.com:tripper-org/facts-service.git\n'
+    )
+
+    elsewhere = tmp_path / "pooled" / "facts-service"
+    _make_worktree_checkout(
+        elsewhere,
+        tmp_path / "worktree-common" / ".git",
+        "git@github.com:tripper-org/facts-service.git",
+    )
+
+    config = Config.from_dict({"projects": {"tripper": {"root": str(root)}}})
+    finder = ProjectFinder(config)
+
+    project = finder.find_project(str(elsewhere))
+
+    assert project.name == "tripper"
+
+
+def test_project_finder_find_project_pooled_worktree_different_remote_not_grouped(
+    tmp_path,
+):
+    """Test that a pooled/treehouse `git worktree` checkout of an unrelated
+    repo sharing the same directory name is NOT grouped under root's
+    project, since its resolved remote disagrees.
+    """
+    root = tmp_path / "tripper"
+    nested_git = root / "facts-service" / ".git"
+    nested_git.mkdir(parents=True)
+    (nested_git / "config").write_text(
+        '[remote "origin"]\n\turl = git@github.com:tripper-org/facts-service.git\n'
+    )
+
+    elsewhere = tmp_path / "pooled" / "facts-service"
+    _make_worktree_checkout(
+        elsewhere,
+        tmp_path / "worktree-common" / ".git",
+        "git@github.com:someone-else/facts-service.git",
+    )
+
+    config = Config.from_dict({"projects": {"tripper": {"root": str(root)}}})
+    finder = ProjectFinder(config)
+
+    project = finder.find_project(str(elsewhere))
+
+    assert project.name == "facts-service"
+
+
+def test_project_finder_find_project_remote_url_with_percent_sign(tmp_path):
+    """Test that a remote URL containing a literal '%' (e.g. a
+    percent-encoded credential) doesn't raise a configparser interpolation
+    error and is still compared correctly.
+    """
+    root = tmp_path / "tripper"
+    nested_git = root / "facts-service" / ".git"
+    nested_git.mkdir(parents=True)
+    (nested_git / "config").write_text(
+        '[remote "origin"]\n\turl = https://user:pa%40ss@github.com/tripper-org/facts-service.git\n'
+    )
+
+    elsewhere = tmp_path / "elsewhere" / "facts-service"
+    elsewhere_git = elsewhere / ".git"
+    elsewhere_git.mkdir(parents=True)
+    (elsewhere_git / "config").write_text(
+        '[remote "origin"]\n\turl = https://user:pa%40ss@github.com/tripper-org/facts-service.git\n'
+    )
+
+    config = Config.from_dict({"projects": {"tripper": {"root": str(root)}}})
+    finder = ProjectFinder(config)
+
+    project = finder.find_project(str(elsewhere))
+
+    assert project.name == "tripper"
+
+
 def test_project_finder_find_project_unrelated_name_not_grouped(tmp_path):
     """Test that a repo whose name doesn't match any nested repo under root
     still falls back to its own name, rather than being grouped by mistake.

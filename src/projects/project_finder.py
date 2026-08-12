@@ -93,22 +93,72 @@ class ProjectFinder:
         """Read the "origin" remote URL from a repo's git config, if any.
 
         Args:
-            repo: Path to the git repository (containing a `.git` dir)
+            repo: Path to the git repository (containing a `.git` dir or,
+                for a worktree checkout, a `.git` file pointing elsewhere)
 
         Returns:
             The origin remote URL, or None if unavailable
         """
-        config_path = repo / ".git" / "config"
+        git_dir = self._resolve_common_git_dir(repo)
+        if git_dir is None:
+            return None
+
+        config_path = git_dir / "config"
         if not config_path.is_file():
             return None
 
-        parser = configparser.ConfigParser()
+        parser = configparser.RawConfigParser()
         try:
             parser.read(config_path)
+            return parser.get('remote "origin"', "url", fallback=None)
         except configparser.Error:
             return None
 
-        return parser.get('remote "origin"', "url", fallback=None)
+    def _resolve_common_git_dir(self, repo: Path) -> Optional[Path]:
+        """Resolve the shared git directory a repo checkout belongs to.
+
+        For a regular checkout this is just `<repo>/.git`. For a `git
+        worktree` checkout, `.git` is a file containing a `gitdir:` pointer
+        into the main repo's `.git/worktrees/<name>` directory, which in
+        turn has a `commondir` file pointing at the actual shared git dir
+        (where `config` and remotes live) - so both need to be followed.
+
+        Args:
+            repo: Path to the repository directory
+
+        Returns:
+            The resolved git directory, or None if it can't be determined
+        """
+        dot_git = repo / ".git"
+
+        if dot_git.is_dir():
+            return dot_git
+
+        if not dot_git.is_file():
+            return None
+
+        try:
+            contents = dot_git.read_text().strip()
+        except OSError:
+            return None
+
+        if not contents.startswith("gitdir:"):
+            return None
+
+        worktree_git_dir = Path(contents.split(":", 1)[1].strip())
+        if not worktree_git_dir.is_absolute():
+            worktree_git_dir = (repo / worktree_git_dir).resolve()
+
+        commondir_file = worktree_git_dir / "commondir"
+        if not commondir_file.is_file():
+            return worktree_git_dir
+
+        try:
+            common_dir_rel = commondir_file.read_text().strip()
+        except OSError:
+            return worktree_git_dir
+
+        return (worktree_git_dir / common_dir_rel).resolve()
 
     def get_project_by_name(self, project_name: str) -> Optional[ProjectInfo]:
         """Get project information by name.
