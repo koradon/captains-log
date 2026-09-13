@@ -36,8 +36,6 @@ packages = ["src"]
 [tool.hatch.build.targets.sdist]
 include = [
     "src/",
-    "commit-msg",
-    "commit-msg-package",
     "README.md",
     "LICENSE",
 ]

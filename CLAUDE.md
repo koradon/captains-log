@@ -97,8 +97,9 @@ per repo name, commit entries as `- (sha) message`, manual `btw` entries under `
 
 ### The git hook itself
 
-`commit-msg` (source install) and `commit-msg-package` (packaged install) are templates
-rendered/copied by `cli.py`'s `setup()`. The rendered hook always calls
+`src/hooks/commit-msg` and `src/hooks/commit-msg-package` are templates whose presence
+`cli.py`'s `setup()` checks for (via `Path(src.__file__).parent / "hooks"`) before installing
+the hook. The rendered hook always calls
 `python -m src.update_log` using `sys.executable` from the environment that ran `setup()` —
 not `python3` off `PATH` — since pipx/uv installs put the package in an isolated interpreter.
 `install_precommit_hooks()` layers a `pre-commit`/`commit-msg-precommit`/`pre-push` wrapper set
