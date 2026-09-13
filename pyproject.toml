@@ -33,6 +33,10 @@ version-file = "src/_version.py"
 [tool.hatch.build.targets.wheel]
 packages = ["src"]
 
+[tool.hatch.build.targets.wheel.force-include]
+"commit-msg" = "commit-msg"
+"commit-msg-package" = "commit-msg-package"
+
 [tool.hatch.build.targets.sdist]
 include = [
     "src/",
