@@ -215,16 +215,11 @@ git tag v0.2.0
 
 ### commit-msg hook not included in package
 
-Check that it's listed in `pyproject.toml`:
-```toml
-[tool.hatch.build.targets.sdist]
-include = [
-    "src/",
-    "commit-msg",
-    "README.md",
-    "LICENSE",
-]
-```
+The hook templates live under `src/hooks/` (`commit-msg`, `commit-msg-package`), so they're
+bundled automatically as part of the `src` package for both the sdist and the wheel — no
+separate `include`/`force-include` entry is needed. If they go missing from a build, check that
+`src/hooks/` wasn't accidentally excluded and that `[tool.hatch.build.targets.wheel]` still has
+`packages = ["src"]`.
 
 ## Current Configuration
 

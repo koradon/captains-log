@@ -75,17 +75,12 @@ def setup():
     # Install commit-msg hook
     print("Installing Git commit-msg hook...")
 
-    # Look for commit-msg-package (for package installations) first
-    commit_msg_source = package_dir.parent / "commit-msg-package"
+    # Hook templates ship inside the package (src/hooks/), so this works the
+    # same way for an editable/source install and a real wheel install.
+    hooks_dir = package_dir / "hooks"
+    commit_msg_source = hooks_dir / "commit-msg-package"
     if not commit_msg_source.exists():
-        # Fall back to regular commit-msg (for installation script)
-        commit_msg_source = package_dir.parent / "commit-msg"
-    if not commit_msg_source.exists():
-        # Try alternate location (when installed from wheel)
-        commit_msg_source = Path(__file__).parent.parent / "commit-msg-package"
-    if not commit_msg_source.exists():
-        # Final fallback
-        commit_msg_source = Path(__file__).parent.parent / "commit-msg"
+        commit_msg_source = hooks_dir / "commit-msg"
 
     commit_msg_dest = git_hooks_dir / "commit-msg"
     if commit_msg_source.exists():

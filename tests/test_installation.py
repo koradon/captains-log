@@ -113,8 +113,10 @@ def test_setup_installs_commit_msg_hook(mock_home, mock_src_module):
     """Test that setup installs commit-msg hook to ~/.git-hooks."""
     mock_src, package_root = mock_src_module
 
-    # Create commit-msg-package hook
-    commit_msg_source = package_root / "commit-msg-package"
+    # Create commit-msg-package hook (lives inside the package, under src/hooks/)
+    hooks_dir = package_root / "src" / "hooks"
+    hooks_dir.mkdir(parents=True)
+    commit_msg_source = hooks_dir / "commit-msg-package"
     commit_msg_source.write_text("#!/bin/bash\necho 'test hook'")
 
     with patch("pathlib.Path.home", return_value=mock_home), patch(
@@ -334,8 +336,11 @@ def test_pipx_installation_integration(tmp_path):
     src_dir.mkdir()
     (src_dir / "__init__.py").write_text("")
 
-    # Create commit-msg-package hook (similar to actual commit-msg-package file)
-    commit_msg_hook = package_root / "commit-msg-package"
+    # Create commit-msg-package hook (similar to actual commit-msg-package file),
+    # living inside the package under src/hooks/
+    hooks_dir = src_dir / "hooks"
+    hooks_dir.mkdir(parents=True)
+    commit_msg_hook = hooks_dir / "commit-msg-package"
     commit_msg_hook.write_text("""#!/bin/bash
 
 # Exit on any error
