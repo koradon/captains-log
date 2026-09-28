@@ -6,6 +6,8 @@ description: >-
   check whether specs, plans, or ADRs need updates per docs/llm/DECISION_RULES.md.
   When the conversation settles on a significant decision (architecture, technology
   choice, cross-cutting convention), propose capturing it as an ADR before continuing.
+  After a change that alters module boundaries, execution flow, or requirements to
+  run, propose refreshing docs/architecture.md (adrlane-write-architecture-overview).
 ---
 
 # Development context (adrlane)
@@ -22,6 +24,7 @@ This repository uses an [adrlane](https://github.com/koradon/adrlane) documentat
 ## During and after work
 
 - After substantial behavior or architecture changes, check `docs/llm/DECISION_RULES.md` for whether a spec, plan, or ADR needs updating.
+- After a change that alters module boundaries, execution flow, or requirements to run, propose refreshing `docs/architecture.md` (see the `adrlane-write-architecture-overview` skill). Patch only the stale sections; do not offer to rewrite the whole file.
 - Prefer patching existing docs over creating duplicates.
 
 ## Significant decisions in conversation

@@ -14,3 +14,5 @@ Create or update a file under `docs/plans/`.
 3. Link to the driving spec in `## Related`.
 4. Use `## Status` and `## Related` sections — no YAML frontmatter.
 5. When finished, set status to `completed` and optionally rename with a `.completed` suffix.
+6. Add or update this plan's row in `docs/plans/INDEX.md` (file, title, status). Copy
+   `docs/llm/templates/index.md` first if `docs/plans/INDEX.md` does not exist yet.
