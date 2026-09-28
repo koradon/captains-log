@@ -14,3 +14,5 @@ Create or update a file under `docs/ideas/`.
 3. Search existing ideas to avoid duplicates; prefer updating an existing file.
 4. Use `## Status` and `## Related` sections — no YAML frontmatter.
 5. Link related specs or roadmap items when they exist.
+6. Add or update this idea's row in `docs/ideas/INDEX.md` (file, title, status). Copy
+   `docs/llm/templates/index.md` first if `docs/ideas/INDEX.md` does not exist yet.

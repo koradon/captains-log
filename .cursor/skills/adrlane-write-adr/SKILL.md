@@ -18,3 +18,5 @@ Create or update a file under `docs/adr/`.
 3. Number sequentially: `0001-short-title.md` (do not reuse numbers).
 4. Use `## Status` and `## Related` sections — no YAML frontmatter.
 5. When superseding a decision, add a new ADR and link to the replaced one.
+6. Add or update this ADR's row in `docs/adr/INDEX.md` (file, title, status). Copy
+   `docs/llm/templates/index.md` first if `docs/adr/INDEX.md` does not exist yet.

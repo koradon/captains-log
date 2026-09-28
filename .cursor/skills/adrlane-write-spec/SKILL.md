@@ -15,3 +15,5 @@ Create or update a file under `docs/specs/`.
 3. For accepted behavior, add or update a Gherkin file: `docs/specs/features/<spec-slug>.feature` using `docs/llm/templates/acceptance.feature`.
 4. Use `## Status` and `## Related` sections — no YAML frontmatter.
 5. Link from related ideas, plans, or roadmap entries in `## Related`.
+6. Add or update this spec's row in `docs/specs/INDEX.md` (file, title, status). Copy
+   `docs/llm/templates/index.md` first if `docs/specs/INDEX.md` does not exist yet.
