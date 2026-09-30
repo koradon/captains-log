@@ -16,6 +16,8 @@ All starter templates live in `docs/llm/templates/`. Copy the relevant file when
 | Roadmap | `docs/llm/templates/roadmap.md` | Now / Next / Later horizon pages |
 | Runbook | `docs/llm/templates/runbook.md` | Operations when `docs/runbooks/` exists |
 | Reference | `docs/llm/templates/reference.md` | CLI/API/config reference when added |
+| Architecture overview | `docs/llm/templates/architecture.md` | Single whole-system overview: how it works, requirements, modes |
+| Index | `docs/llm/templates/index.md` | Per-directory file listing for `docs/adr/`, `docs/specs/`, `docs/ideas/`, `docs/plans/`, `docs/roadmap/` |
 
 ## File naming
 
@@ -31,6 +33,8 @@ All starter templates live in `docs/llm/templates/`. Copy the relevant file when
 | Roadmap (horizon page) | `now.md` / `next.md` / `later.md` | `now.md` |
 | Runbook | `short-operation-name.md` | `local-development.md` |
 | Reference | `short-topic-name.md` | `cli-commands.md` |
+| Architecture overview | `architecture.md` (fixed name, one per repo) | `architecture.md` |
+| Index | `INDEX.md` (fixed name, one per directory) | `docs/adr/INDEX.md` |
 
 Use lowercase kebab-case for new files unless an existing convention differs.
 
@@ -58,6 +62,21 @@ Common sections:
 | Plan | `draft`, `active`, `completed`, `superseded` |
 | ADR | `proposed`, `accepted`, `deprecated`, `superseded` |
 | Roadmap | `draft`, `active` |
+| Architecture overview | `current`, `stale` |
+
+## Per-directory INDEX.md
+
+`docs/adr/`, `docs/specs/`, `docs/ideas/`, `docs/plans/`, and `docs/roadmap/` each keep an
+`INDEX.md` listing the files inside, so an agent can scan the directory without opening
+every file (see `docs/adr/0007-per-directory-index-md-hand-maintained-no-frontmatter.md`).
+
+- Copy `docs/llm/templates/index.md` the first time a directory gets its first file.
+- When creating or updating a file in one of these directories, add or update its row in
+  that directory's `INDEX.md` (file link, title from the `# ` heading, status from
+  `## Status`).
+- Do not create an `INDEX.md` for an empty directory — add it alongside the first real file.
+- `INDEX.md` is hand-maintained, not generated; keep it in sync as part of the same edit
+  that touches the directory, not as a separate pass.
 
 ## Update semantics
 

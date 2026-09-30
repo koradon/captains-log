@@ -13,9 +13,14 @@ If this repository was bootstrapped with adrlane, agent-specific skills may be p
 | `adrlane-write-spec` | Write or update specs in `docs/specs/` |
 | `adrlane-write-plan` | Write or update plans in `docs/plans/` |
 | `adrlane-write-adr` | Document decisions in `docs/adr/` |
+| `adrlane-write-architecture-overview` | Create or refresh the whole-system overview in `docs/architecture.md` |
 | `adrlane-workspace-routing` | Route docs to project or sub-repo trees when `.adrlane/workspace.yaml` exists |
 
 Skills are thin adapters; this file and `docs/llm/DECISION_RULES.md` remain the source of truth.
+
+## Who decides when to update
+
+The agent decides whether documentation needs updating during normal development. There is no adrlane sync job or gap detector. When behavior, decisions, or structure change in a way that should be recorded, use the installed skills and this contract to create or patch files under `docs/`. The developer reviews changes via `git diff` and commits.
 
 ## Where documentation lives
 
@@ -25,6 +30,7 @@ Skills are thin adapters; this file and `docs/llm/DECISION_RULES.md` remain the 
 | Spec | `docs/specs/` | What the system should do — requirements, behavior, contracts |
 | Plan | `docs/plans/` | How to implement a spec — steps, scope, risks |
 | ADR | `docs/adr/` | Why a significant decision was made and what it implies |
+| Architecture overview | `docs/architecture.md` | How the whole system works today — requirements, execution flow, modules, diagrams |
 | Roadmap | `docs/roadmap/` | Now / Next / Later horizons for future initiatives |
 
 Other sections (for example `docs/runbooks/`, `docs/reference/`) are added by the agent when the project needs them. See `docs/README.md`.
