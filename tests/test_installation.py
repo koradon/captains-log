@@ -134,7 +134,10 @@ def test_setup_installs_commit_msg_hook(mock_home, mock_src_module):
         assert os.access(commit_msg_dest, os.X_OK), "commit-msg should be executable"
         # Verify hook content runs update_log module
         content = commit_msg_dest.read_text(encoding="utf-8")
-        assert "src.update_log" in content
+        assert (
+            "src.update_log" in (mock_home / ".git-hooks" / "post-commit").read_text()
+        )
+        assert "src.update_log" not in content
 
 
 def test_setup_sets_git_hooks_path(mock_home, mock_git_config, mock_src_module):
@@ -400,7 +403,7 @@ fi
     )
 
     # Verify hook content - should contain src.update_log (the actual hook uses this)
-    hook_content = commit_msg_hook_installed.read_text()
+    hook_content = (git_hooks_dir / "post-commit").read_text()
     assert "src.update_log" in hook_content, (
         f"Hook should contain src.update_log. Got: {hook_content[:100]}"
     )

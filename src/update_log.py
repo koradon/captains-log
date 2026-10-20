@@ -6,6 +6,7 @@ This script processes git commit information and updates daily log files.
 """
 
 import sys
+from contextlib import redirect_stderr, redirect_stdout
 from datetime import date
 from pathlib import Path
 
@@ -16,6 +17,7 @@ from src.entries import EntryProcessor
 from src.git import CommitParser, GitOperations
 from src.logs import LogManager
 from src.projects import ProjectFinder
+from src.publication import PublicationRun
 
 
 # Backward compatibility exports for existing tests
@@ -68,7 +70,7 @@ def save_log(file_path, repos):
 def commit_and_push(log_repo_path, commit_msg):
     """Legacy function for backward compatibility."""
     git_ops = GitOperations(log_repo_path)
-    git_ops.commit_and_push(commit_msg)
+    return git_ops.commit_and_push(commit_msg)
 
 
 def get_log_repo_and_path(project, config):
@@ -101,8 +103,7 @@ def main():
     try:
         args, log_level = cli_logging.split_log_level_args(sys.argv[1:])
     except ValueError as exc:
-        cli_logging.error(str(exc))
-        sys.exit(0)
+        _argument_error(str(exc))
     cli_logging.configure_log_level(log_level)
 
     # Check for version flag
@@ -113,22 +114,39 @@ def main():
         sys.exit(0)
 
     if len(args) < 4:
-        print(
+        _argument_error(
             "Usage: update_log.py [--log-level compact|verbose|debug] "
             "<repo_name> <repo_path> <commit_sha> <commit_message>"
         )
-        return
 
     repo_name = args[0]
     repo_path = args[1]
     commit_sha = args[2]
     commit_msg = args[3]
 
-    try:
-        # Load configuration
-        config = load_config()
+    run = PublicationRun(repo_name, commit_sha)
+    with redirect_stdout(run), redirect_stderr(run):
+        status = _update(repo_name, repo_path, commit_sha, commit_msg, run)
+        run.exit_status = status
+        print(f"Run finished with exit_status={status}")
+        run.flush()
+    if status:
+        raise SystemExit(status)
 
-        # Check if we should skip this commit
+
+def _argument_error(message):
+    run = PublicationRun("unknown", "unknown")
+    run.stage = "arguments"
+    run.exit_status = 2
+    with redirect_stdout(run):
+        print(message)
+    raise SystemExit(2)
+
+
+def _update(repo_name, repo_path, commit_sha, commit_msg, run):
+    saved = False
+    try:
+        config = load_config()
         if CommitParser.should_skip_commit(
             commit_sha,
             repo_path,
@@ -138,66 +156,87 @@ def main():
                 print("Skipping log update: No valid commit SHA")
             else:
                 print("Skipping log update: Running from within log repository")
-            return
+            return 0
 
-        # Find project information
-        project_finder = ProjectFinder(config)
-        project = project_finder.find_project(repo_path)
-
+        run.stage = "project"
+        project = ProjectFinder(config).find_project(repo_path)
         if project.is_private:
             print("Skipping log update: repository is private")
-            return
+            return 0
 
-        # Get log file information
         log_manager = LogManager(config)
         log_info = log_manager.get_log_file_info(project)
-
-        # Pull remote changes before reading the log, so a push made from
-        # another machine (or directly on GitHub) is already reflected in
-        # what we load and merge into below.
-        if log_info.has_git_repo and log_info.log_repo_path:
-            GitOperations(log_info.log_repo_path).pull()
-
-        # Load existing log data
-        log_data = log_manager.load_log(log_info)
-
-        # Process the new commit entry
-        entry_processor = EntryProcessor()
-
-        # Get or create repository entries
-        repo_entries = log_data.get_repo_entries(repo_name)
-
-        # Update with new commit
-        updated_entries = entry_processor.update_commit_entries(
-            repo_entries, commit_sha, commit_msg
-        )
-
-        # Update log data
-        log_data.set_repo_entries(repo_name, updated_entries)
-
-        # Save the updated log
-        log_manager.save_log(log_info, log_data)
-
-        # Commit and push all changes if we have a git repository
+        # A project-specific log repo also needs the recursion guard.
+        if (
+            log_info.log_repo_path
+            and Path(repo_path).resolve() == log_info.log_repo_path.resolve()
+        ):
+            print("Skipping log update: Running from within log repository")
+            return 0
+        run.start_pending(log_info.log_repo_path, log_info.file_path)
+        git_ops = None
         if log_info.has_git_repo and log_info.log_repo_path:
             git_ops = GitOperations(log_info.log_repo_path)
-            commit_message = (
-                f"Update {project.name} logs for {date.today().isoformat()}"
+            run.git_ops = git_ops
+            if git_ops.wait_for_locks():
+                git_ops.stage = "pull"
+                git_ops.pull()
+            # A failed pull must not prevent saving the source entry locally.
+            # commit_and_push will expose a failed publication (or recover later).
+            run.git_ops = None
+
+        run.stage = "read"
+        log_data = log_manager.load_log(log_info)
+        processor = EntryProcessor()
+        updated = processor.update_commit_entries(
+            log_data.get_repo_entries(repo_name),
+            commit_sha,
+            commit_msg,
+        )
+        log_data.set_repo_entries(repo_name, updated)
+        run.stage = "save"
+        log_manager.save_log(log_info, log_data)
+        saved = True
+        run.update_pending(saved_locally=True)
+        print(f"Saved locally for {repo_name} in project {project.name}")
+
+        if git_ops is None:
+            run.stage = "publication"
+            run.exit_status = 2
+            run.update_pending()
+            print(
+                f"Saved locally; NOT published: no Git log repository; pending={run.marker}"
             )
-            git_ops.commit_and_push(commit_message)
+            return 2
 
-        print(f"Updated log for {repo_name} in project {project.name}")
-        cli_logging.debug(
-            f"Debug details: repo={repo_name}, repo_path={repo_path}, sha={commit_sha}"
-        )
+        run.git_ops = git_ops
+        commit_message = f"Update {project.name} logs for {date.today().isoformat()}"
+        if not git_ops.commit_and_push(commit_message):
+            run.exit_status = 1
+            run.update_pending()
+            print(f"Saved locally; NOT published; pending={run.marker}")
+            return 1
 
-    except Exception as e:
-        print(f"Error updating log: {e}")
-        cli_logging.debug(
-            f"Debug context: repo={repo_name}, path={repo_path}, sha={commit_sha}"
+        run.exit_status = 0
+        run.published()
+        print(f"Published log for {repo_name} in project {project.name}")
+        return 0
+    except Exception as exc:
+        run.exit_status = 1
+        print(f"Error updating log: {exc}")
+        if not run.record:
+            run.record = {"run": run.run_id, "repo": repo_name, "sha": commit_sha}
+        if run.record:
+            try:
+                run.update_pending(saved_locally=saved, error=str(exc))
+            except OSError as marker_error:
+                print(f"Error recording pending publication: {marker_error}")
+        print(
+            "Saved locally; NOT published"
+            if saved
+            else "Log update failed before local save"
         )
-        # Don't exit with error code to avoid breaking git operations
-        sys.exit(0)
+        return 1
 
 
 if __name__ == "__main__":

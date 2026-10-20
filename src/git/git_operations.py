@@ -1,7 +1,10 @@
 """Git operations for Captain's Log."""
 
 import os
+import shutil
+import stat
 import subprocess
+import time
 from pathlib import Path
 
 # Git points these at the invoking repository (and, from a worktree, at its
@@ -23,6 +26,9 @@ class GitOperations:
 
     # How many times to pull-and-retry a rejected push before giving up.
     MAX_PUSH_RETRIES = 3
+    LOCK_RETRIES = 5
+    LOCK_RETRY_DELAY = 0.2
+    STALE_LOCK_SECONDS = 24 * 60 * 60
 
     # Git attribute that makes concurrent same-section appends to the log's
     # markdown files merge cleanly (keep every unique line from both sides)
@@ -37,6 +43,84 @@ class GitOperations:
             repo_path: Path to the git repository
         """
         self.repo_path = repo_path
+        self.stage = "lock"
+        self.status_failed = False
+
+    def _git_directories(self):
+        """Resolve ordinary and linked-worktree metadata without inherited env."""
+        git_dir = self.repo_path / ".git"
+        if git_dir.is_file():
+            value = git_dir.read_text(encoding="utf-8").strip()
+            if not value.startswith("gitdir: "):
+                raise ValueError(f"Unrecognized Git directory: {git_dir}")
+            git_dir = (self.repo_path / value[8:]).resolve()
+        directories = [git_dir]
+        common = git_dir / "commondir"
+        if common.is_file():
+            directories.append((git_dir / common.read_text().strip()).resolve())
+        return directories
+
+    def _lock_files(self):
+        return [
+            path
+            for directory in self._git_directories()
+            for path in directory.glob("*.lock")
+        ]
+
+    def _recover_abandoned_lock(self, path):
+        """Fail closed unless an old, unchanged regular lock has no open owner.
+
+        lsof works on macOS and Linux. Missing tools, unsupported platforms,
+        inspection errors, symlinks, and changing files all require manual action.
+        """
+        try:
+            before = path.lstat()
+            if (
+                not stat.S_ISREG(before.st_mode)
+                or time.time() - max(before.st_mtime, before.st_ctime)
+                < self.STALE_LOCK_SECONDS
+            ):
+                return False
+            lsof = shutil.which("lsof") if os.name == "posix" else None
+            if lsof is None:
+                return False
+            result = subprocess.run(
+                [lsof, "-t", str(path.resolve())],
+                capture_output=True,
+                text=True,
+                timeout=2,
+            )
+            # lsof's documented no-match result: status 1, no output or errors.
+            if result.returncode != 1 or result.stdout.strip() or result.stderr.strip():
+                return False
+            if path.lstat() != before:
+                return False
+            path.unlink()
+            print(
+                f"Recovered abandoned Git lock: {path}; publishing pending local entries"
+            )
+            return True
+        except FileNotFoundError:
+            return True  # The owning Git process removed it while we waited.
+        except (OSError, subprocess.TimeoutExpired):
+            return False
+
+    def wait_for_locks(self):
+        """Briefly wait for active Git operations, then recover only proven stale locks."""
+        self.stage = "lock"
+        for attempt in range(self.LOCK_RETRIES + 1):
+            locks = self._lock_files()
+            if not locks:
+                return True
+            if attempt < self.LOCK_RETRIES:
+                time.sleep(self.LOCK_RETRY_DELAY)
+        for path in locks:
+            self._recover_abandoned_lock(path)
+        remaining = self._lock_files()
+        if remaining:
+            print(f"Warning: Git locks remain; publication blocked: {remaining}")
+            return False
+        return True
 
     def _run_git(self, args: list, **kwargs) -> subprocess.CompletedProcess:
         """Run a git command scoped to repo_path, immune to inherited repo env vars.
@@ -57,6 +141,7 @@ class GitOperations:
         Returns:
             True if there are changes, False otherwise
         """
+        self.status_failed = False
         try:
             result = self._run_git(
                 ["-C", str(self.repo_path), "status", "--porcelain"],
@@ -66,6 +151,7 @@ class GitOperations:
             )
             return bool(result.stdout.strip())
         except subprocess.CalledProcessError:
+            self.status_failed = True
             return False
 
     def has_lock_files(self) -> bool:
@@ -74,12 +160,7 @@ class GitOperations:
         Returns:
             True if lock files exist, False otherwise
         """
-        git_dir = self.repo_path / ".git"
-        if not git_dir.exists():
-            return False
-
-        lock_files = list(git_dir.glob("*.lock"))
-        return len(lock_files) > 0
+        return bool(self._lock_files())
 
     def add_file(self, file_path: Path) -> bool:
         """Add a file to the git staging area.
@@ -369,30 +450,34 @@ class GitOperations:
         """
         try:
             # Check for lock files
-            if self.has_lock_files():
-                print("Warning: Git lock files found, skipping operations")
+            if not self.wait_for_locks():
                 return False
 
+            self.stage = "add"
             self.ensure_merge_driver()
 
             # Check if there are any changes to commit
-            if not self.has_changes():
-                print("No changes to commit, skipping git operations")
-                return True
-
-            # Add all changes
-            if not self.add_all():
-                print("Warning: Failed to add files to git")
+            self.stage = "status"
+            has_changes = self.has_changes()
+            if self.status_failed:
+                print("Warning: Failed to inspect Git status")
                 return False
-
-            # Commit
-            if not self.commit(commit_message):
-                print("Warning: Failed to commit changes")
-                return False
+            if has_changes:
+                # Include entries left by earlier failed runs in the same commit.
+                self.stage = "add"
+                if not self.add_all():
+                    print("Warning: Failed to add files to git")
+                    return False
+                self.stage = "commit"
+                if not self.commit(commit_message):
+                    print("Warning: Failed to commit changes")
+                    return False
 
             # Push, retrying with a pull in between if the remote moved on
+            # A clean worktree can still have commits from an earlier failed push.
+            self.stage = "push"
             if self.push():
-                print("Successfully committed and pushed log updates")
+                print("Successfully published log updates")
                 return True
 
             for attempt in range(1, self.MAX_PUSH_RETRIES + 1):
@@ -400,9 +485,12 @@ class GitOperations:
                     f"Warning: Push rejected, pulling and retrying "
                     f"({attempt}/{self.MAX_PUSH_RETRIES})..."
                 )
-                self.pull()
+                self.stage = "pull"
+                if self.pull() is False:
+                    return False
+                self.stage = "push"
                 if self.push():
-                    print("Successfully committed and pushed log updates")
+                    print("Successfully published log updates")
                     return True
 
             print("Warning: Failed to push changes")

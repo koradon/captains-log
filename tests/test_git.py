@@ -414,9 +414,7 @@ def test_git_operations_commit_and_push_lock_files(tmp_path):
     with patch("builtins.print") as mock_print:
         result = git_ops.commit_and_push("Test commit")
         assert result is False
-        mock_print.assert_called_with(
-            "Warning: Git lock files found, skipping operations"
-        )
+        assert "publication blocked" in mock_print.call_args.args[0]
 
 
 @patch("subprocess.run")
@@ -433,7 +431,7 @@ def test_git_operations_commit_and_push_no_changes(mock_run, tmp_path):
     with patch("builtins.print") as mock_print:
         result = git_ops.commit_and_push("Test commit")
         assert result is True
-        mock_print.assert_called_with("No changes to commit, skipping git operations")
+        mock_print.assert_called_with("Successfully published log updates")
 
 
 @patch("subprocess.run")
@@ -606,6 +604,7 @@ def test_git_operations_commit_and_push_push_failure(monkeypatch, tmp_path):
     monkeypatch.setattr(git_ops, "add_all", lambda: True)
     monkeypatch.setattr(git_ops, "commit", lambda msg: True)
     monkeypatch.setattr(git_ops, "push", lambda: False)
+    monkeypatch.setattr(git_ops, "pull", lambda: True)
 
     with patch("builtins.print") as mock_print:
         result = git_ops.commit_and_push("Test commit")

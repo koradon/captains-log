@@ -17,6 +17,7 @@ from src.entries import EntryProcessor
 from src.git import GitOperations
 from src.logs import LogManager
 from src.projects import ProjectFinder
+from src.publication import warn_unpublished
 
 
 def add_manual_entry(entry_text: str):
@@ -26,6 +27,7 @@ def add_manual_entry(entry_text: str):
         entry_text: Text for the manual entry
     """
     # Load configuration
+    warn_unpublished()
     config = load_config()
 
     # Find project from current working directory

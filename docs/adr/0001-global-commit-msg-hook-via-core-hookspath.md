@@ -4,6 +4,10 @@
 
 Accepted
 
+The logging stage is updated to `post-commit` by
+[ADR 0008](0008-observable-post-commit-publication.md); the original decision below records
+the rationale for global hooks. `commit-msg` now dispatches message validation only.
+
 ## Context and Problem Statement
 
 Captain's Log's core promise is to aggregate commit messages into daily logs across every

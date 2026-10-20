@@ -5,6 +5,7 @@ Captain's Log CLI - Main command-line interface
 Provides setup and configuration commands for Captain's Log.
 """
 
+import shlex
 import subprocess
 import sys
 from pathlib import Path
@@ -13,33 +14,31 @@ from . import __version__, cli_logging
 
 
 def _render_commit_msg_hook(python_executable: str) -> str:
-    """Render commit-msg hook content using a specific Python interpreter.
+    """Keep commit-message validation separate from post-commit logging.
 
-    This avoids relying on `python3` from PATH (which may not have the
-    package installed, e.g. when `git-captains-log` is installed via pipx).
+    Re-running setup replaces the legacy logger while preserving installed
+    pre-commit validation wrappers. Captain's Log itself never vetoes a commit.
     """
-    # Use bash for compatibility with existing hook and common shells.
-    py = python_executable.replace('"', '\\"')
-    return f"""#!/bin/bash
-
-# Exit on any error
-set -e
-
-# Get repository information
-REPO_NAME=$(basename "$(git rev-parse --show-toplevel)")
-REPO_PATH=$(git rev-parse --show-toplevel)
-COMMIT_MSG=$(head -n1 "$1")
-
-# Get commit SHA (handle both pre-commit and post-commit scenarios)
-COMMIT_SHA=$(git rev-parse --verify HEAD 2>/dev/null || echo "no-sha")
-
-# Run the update script using the installed package
-export GIT_HOOK=1
-if ! "{py}" -m src.update_log "$REPO_NAME" "$REPO_PATH" "$COMMIT_SHA" "$COMMIT_MSG"; then
-    echo "Warning: Captain's Log update failed, but commit will continue"
-    echo "Check the script output above for errors"
-    exit 0  # Don't fail the commit
+    return """#!/bin/sh
+HOOKS_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+if [ -x "$HOOKS_DIR/commit-msg-precommit" ]; then
+    exec "$HOOKS_DIR/commit-msg-precommit" "$@"
 fi
+exit 0
+"""
+
+
+def _render_post_commit_hook(python_executable: str) -> str:
+    """Capture immutable commit details before starting the background publisher."""
+    return f"""#!/bin/sh
+REPO_PATH=$(git rev-parse --show-toplevel) || exit 0
+REPO_NAME=$(basename "$REPO_PATH")
+COMMIT_SHA=$(git rev-parse --verify HEAD) || exit 0
+COMMIT_MSG=$(git log -1 --format=%s "$COMMIT_SHA") || exit 0
+mkdir -p "$HOME/.captains-log" || exit 0
+# Diagnostics include the updater's exit status; publication never blocks Git.
+GIT_HOOK=1 {shlex.quote(python_executable)} -m src.update_log "$REPO_NAME" "$REPO_PATH" "$COMMIT_SHA" "$COMMIT_MSG" >> "$HOME/.captains-log/update-log.log" 2>&1 < /dev/null &
+exit 0
 """
 
 
@@ -72,8 +71,8 @@ def setup():
         print("  pip install git-captains-log")
         sys.exit(1)
 
-    # Install commit-msg hook
-    print("Installing Git commit-msg hook...")
+    # Migrate the legacy logger and install its post-commit replacement together.
+    print("Installing Git commit-msg dispatcher and post-commit logger...")
 
     # Hook templates ship inside the package (src/hooks/), so this works the
     # same way for an editable/source install and a real wheel install.
@@ -90,7 +89,13 @@ def setup():
         hook_content = _render_commit_msg_hook(sys.executable)
         commit_msg_dest.write_text(hook_content, encoding="utf-8")
         commit_msg_dest.chmod(0o755)
-        print(f"  ✓ Installed commit-msg hook to {commit_msg_dest}")
+        post_commit_dest = git_hooks_dir / "post-commit"
+        post_commit_dest.write_text(
+            _render_post_commit_hook(sys.executable), encoding="utf-8"
+        )
+        post_commit_dest.chmod(0o755)
+        print(f"  ✓ Updated commit-msg dispatcher at {commit_msg_dest}")
+        print(f"  ✓ Installed post-commit logger to {post_commit_dest}")
     else:
         print("  ⚠ Warning: commit-msg hook not found in package")
         print("    You may need to copy it manually from the repository")
@@ -195,36 +200,7 @@ fi
 exit 0
 """
 
-    python_executable = sys.executable.replace('"', '\\"')
-
-    captains_log = f"""#!/usr/bin/env sh
-
-# Captain's Log commit-msg dispatcher
-# Behavior:
-# - If commit-msg-precommit exists: run pre-commit first
-# - Always run Captain's Log hook afterwards using the current interpreter
-
-set -eu
-
-HOOKS_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
-PRECOMMIT_WRAPPER="$HOOKS_DIR/commit-msg-precommit"
-
-# 1) Run pre-commit wrapper if present
-if [ -x "$PRECOMMIT_WRAPPER" ]; then
-  "$PRECOMMIT_WRAPPER" "$@"
-fi
-
-# 2) Run Captain's Log update via installed package
-REPO_NAME=$(basename "$(git rev-parse --show-toplevel)")
-REPO_PATH=$(git rev-parse --show-toplevel)
-COMMIT_MSG=$(head -n1 "$1")
-COMMIT_SHA=$(git rev-parse --verify HEAD 2>/dev/null || echo "no-sha")
-
-export GIT_HOOK=1
-exec "{python_executable}" -m src.update_log "$REPO_NAME" "$REPO_PATH" "$COMMIT_SHA" "$COMMIT_MSG"
-
-exit 0
-"""
+    captains_log = _render_commit_msg_hook(sys.executable)
 
     pre_push = """#!/usr/bin/env sh
 
@@ -239,6 +215,7 @@ exit 0
     write_hook("pre-commit", pre_commit)
     write_hook("commit-msg-precommit", commit_msg_precommit)
     write_hook("commit-msg", captains_log)
+    write_hook("post-commit", _render_post_commit_hook(sys.executable))
     write_hook("pre-push", pre_push)
 
     # Set global git hooks path
@@ -268,9 +245,7 @@ exit 0
 
     print("\nDone. pre-commit wrappers are installed globally.")
     print("- They run pre-commit in repos with .pre-commit-config.yaml")
-    print(
-        "- The commit-msg wrapper will also run Captain's Log if installed at ~/.captains-log"
-    )
+    print("- Captain's Log publishes asynchronously from post-commit")
 
 
 def main():

@@ -5,7 +5,7 @@ This file provides guidance to agents when working with code in this repository.
 ## What this is
 
 Captain's Log is a Python CLI that automatically aggregates git commit messages into daily
-markdown logs, grouped by repository and project. It installs a global `commit-msg` git hook
+markdown logs, grouped by repository and project. It installs a global `post-commit` git hook
 (via `core.hooksPath`) so every commit across every repo on the machine gets logged without
 per-repo setup. It also ships standalone commands (`btw`, `wtf`, `wnext`, `stone`) for adding
 manual entries alongside the git-derived ones.
@@ -44,7 +44,7 @@ via `from src.xxx import ...` rather than a package-relative style.
   both in sync when changing a command's options.
 - `src/cli.py` — `setup()` and `install_precommit_hooks()`, the logic behind those two
   subcommands. Not Typer-based itself; called from `app.py`.
-- `src/update_log.py` — the script invoked directly by the installed git hook
+- `src/update_log.py` — the script invoked asynchronously by the installed post-commit hook
   (`python -m src.update_log <repo_name> <repo_path> <commit_sha> <commit_message>`), not
   through the Typer CLI. It also re-exports several "legacy" free functions
   (`load_config_legacy`, `find_project`, `save_log`, etc.) purely for backward-compatible test
@@ -97,9 +97,9 @@ per repo name, commit entries as `- (sha) message`, manual `btw` entries under `
 
 ### The git hook itself
 
-`src/hooks/commit-msg` and `src/hooks/commit-msg-package` are templates whose presence
-`cli.py`'s `setup()` checks for (via `Path(src.__file__).parent / "hooks"`) before installing
-the hook. The rendered hook always calls
+`src/hooks/commit-msg` and `src/hooks/commit-msg-package` are compatibility dispatchers whose
+presence `cli.py`'s `setup()` checks for (via `Path(src.__file__).parent / "hooks"`) before
+installing the dispatcher and post-commit logger. The rendered post-commit hook calls
 `python -m src.update_log` using `sys.executable` from the environment that ran `setup()` —
 not `python3` off `PATH` — since pipx/uv installs put the package in an isolated interpreter.
 `install_precommit_hooks()` layers a `pre-commit`/`commit-msg-precommit`/`pre-push` wrapper set

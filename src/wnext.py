@@ -19,10 +19,12 @@ from src.entries import EntryProcessor
 from src.git import GitOperations
 from src.logs import LogManager
 from src.projects import ProjectFinder
+from src.publication import warn_unpublished
 
 
 def add_what_next_entry(entry_text: str, project_name: Optional[str], use_other: bool):
     """Add an entry to the 'Whats next' section."""
+    warn_unpublished()
     config = load_config()
 
     project_finder = ProjectFinder(config)
