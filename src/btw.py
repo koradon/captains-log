@@ -17,7 +17,7 @@ from src.entries import EntryProcessor
 from src.git import GitOperations
 from src.logs import LogManager
 from src.projects import ProjectFinder
-from src.publication import warn_unpublished
+from src.publication import publish_manual_entry, warn_unpublished
 
 
 def add_manual_entry(entry_text: str):
@@ -63,7 +63,10 @@ def add_manual_entry(entry_text: str):
         if log_info.has_git_repo:
             git_ops = GitOperations(log_info.log_repo_path)
             commit_message = f"Add manual entry to {project.name} logs for {date.today().isoformat()}"
-            git_ops.commit_and_push(commit_message)
+            if not publish_manual_entry(
+                git_ops, log_info.log_repo_path, commit_message
+            ):
+                sys.exit(1)
 
         cli_logging.success(f"Added entry to {project.name} log: {entry_text}")
     else:

@@ -91,7 +91,7 @@ class PublicationRun:
             "repo": self.repo,
             "sha": self.sha,
             "log_repo": destination,
-            "log_file": str(log_file),
+            "log_file": str(log_file) if log_file else None,
             "saved_locally": False,
         }
         self.update_pending()
@@ -116,3 +116,17 @@ class PublicationRun:
                 pass
             except OSError as exc:
                 print(f"Published, but could not clear pending record {path}: {exc}")
+
+
+def publish_manual_entry(git_ops, log_repo, commit_message):
+    """Publish a manual entry; on failure keep a pending marker and return False."""
+    run = PublicationRun("manual", "manual")
+    run.start_pending(log_repo, None)
+    if git_ops.commit_and_push(commit_message):
+        run.published()
+        return True
+    run.stage = git_ops.stage
+    run.exit_status = 1
+    run.update_pending(saved_locally=True)
+    cli_logging.error(f"Saved locally; NOT published; pending={run.marker}")
+    return False

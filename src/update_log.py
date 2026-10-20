@@ -173,9 +173,9 @@ def _update(repo_name, repo_path, commit_sha, commit_msg, run):
         ):
             print("Skipping log update: Running from within log repository")
             return 0
-        run.start_pending(log_info.log_repo_path, log_info.file_path)
         git_ops = None
         if log_info.has_git_repo and log_info.log_repo_path:
+            run.start_pending(log_info.log_repo_path, log_info.file_path)
             git_ops = GitOperations(log_info.log_repo_path)
             run.git_ops = git_ops
             if git_ops.wait_for_locks():
@@ -197,18 +197,12 @@ def _update(repo_name, repo_path, commit_sha, commit_msg, run):
         run.stage = "save"
         log_manager.save_log(log_info, log_data)
         saved = True
-        run.update_pending(saved_locally=True)
         print(f"Saved locally for {repo_name} in project {project.name}")
 
         if git_ops is None:
-            run.stage = "publication"
-            run.exit_status = 2
-            run.update_pending()
-            print(
-                f"Saved locally; NOT published: no Git log repository; pending={run.marker}"
-            )
-            return 2
+            return 0
 
+        run.update_pending(saved_locally=True)
         run.git_ops = git_ops
         commit_message = f"Update {project.name} logs for {date.today().isoformat()}"
         if not git_ops.commit_and_push(commit_message):

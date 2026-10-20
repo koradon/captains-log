@@ -350,3 +350,73 @@ def test_post_commit_publishes_first_and_amended_commit_sha(sandbox, monkeypatch
         remote, "grep", f"{kind} source commit", "main"
     )
     assert not list((home / ".captains-log" / "pending").glob("*.json"))
+
+
+@pytest.mark.parametrize("command", ["btw", "wtf", "wnext", "stone"])
+def test_manual_entry_commands_report_failed_publication(sandbox, command):
+    home, remote, logs, source = sandbox
+    (logs / ".git" / "index.lock").touch()
+    before = git(remote, "rev-parse", "main")
+
+    result = subprocess.run(
+        [sys.executable, "-m", f"src.{command}", "Manual note"],
+        cwd=source,
+        capture_output=True,
+        text=True,
+        timeout=20,
+    )
+
+    output = result.stdout + result.stderr
+    assert result.returncode == 1
+    assert "Saved locally; NOT published" in output
+    assert "Added" not in output
+    assert git(remote, "rev-parse", "main") == before
+    records = [
+        json.loads(path.read_text())
+        for path in (home / ".captains-log" / "pending").glob("*.json")
+    ]
+    assert len(records) == 1
+    assert records[0]["saved_locally"] is True
+    assert records[0]["stage"] == "lock"
+
+
+def test_manual_entry_success_clears_pending_for_destination(sandbox):
+    home, _, logs, source = sandbox
+    lock = logs / ".git" / "index.lock"
+    lock.touch()
+    update(source, "Blocked entry")
+    lock.unlink()
+
+    result = subprocess.run(
+        [sys.executable, "-m", "src.btw", "Manual note"],
+        cwd=source,
+        capture_output=True,
+        text=True,
+        timeout=20,
+    )
+
+    assert result.returncode == 0
+    assert not list((home / ".captains-log" / "pending").glob("*.json"))
+
+
+def test_local_only_log_is_a_complete_save_without_pending_state(sandbox):
+    home, _, _, source = sandbox
+    local = home / ".captains-log" / "projects"
+    (home / ".captains-log" / "config.yml").write_text("projects: {}\n")
+
+    result = update(source, "Local only entry")
+    manual = subprocess.run(
+        [sys.executable, "-m", "src.btw", "Manual note"],
+        cwd=source,
+        capture_output=True,
+        text=True,
+        timeout=20,
+    )
+
+    assert result.returncode == 0
+    assert "Saved locally" in result.stdout
+    assert "NOT published" not in result.stdout
+    assert "Local only entry" in "\n".join(p.read_text() for p in local.rglob("*.md"))
+    assert not list((home / ".captains-log" / "pending").glob("*.json"))
+    assert manual.returncode == 0
+    assert "unpublished" not in manual.stdout

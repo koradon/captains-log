@@ -19,15 +19,18 @@ Background logging must distinguish those outcomes and retain inspectable pendin
 - `update_log` prefixes every processing diagnostic line with UTC `timestamp`, unique `run`,
   source `repo`, full source `sha`, current `stage`, and `exit_status`. The final line records
   the numeric process exit status: 0 for publication or intentional privacy/recursion skips,
-  1 for failure, 2 for a local save without a Git destination or invalid arguments.
+  1 for failure, 2 for invalid arguments. A local save in a log directory that is not a Git
+  repository is a complete save: exit 0 with no pending record.
 - A local save prints `Saved locally`. A failed publication prints `Saved locally; NOT
   published`; only successful push prints `Published`. Config/read/save failures exit 1.
-- Before saving, create `~/.captains-log/pending/<run>.json` atomically, containing the source
+- Before saving to a Git log repository, create `~/.captains-log/pending/<run>.json` atomically, containing the source
   identity, destination, file, timestamp, stage, exit status, and whether the file was saved.
   A failure updates this record. A successful automatic run clears its own record and the
   snapshot of earlier saved records for the same destination. Other destinations,
   incomplete saves, malformed records, and runs started after that snapshot remain visible.
-- `btw`, `wtf`, `wnext`, and `stone` warn about pending automatic runs, including when a
+- `btw`, `wtf`, `wnext`, and `stone` report a failed publication of their own entry as
+  `Saved locally; NOT published`, exit 1, and leave a pending record; a successful publication
+  clears saved records for that destination. They also warn about pending automatic runs, including when a
   duplicate manual entry would cause no write. These warnings are visible at compact level.
 - Wait five times for 0.2 seconds for top-level Git locks. Resolve `.git` pointers and common
   directories for linked worktrees. Recover only regular lock files whose mtime **and**

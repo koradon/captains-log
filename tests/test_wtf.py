@@ -76,6 +76,7 @@ def test_add_wtf_entry_adds_and_commits(tmp_path, monkeypatch, capsys):
 
         def commit_and_push(self, message: str):
             recorded["git_message"] = message
+            return True
 
     monkeypatch.setattr(wtf, "load_config", lambda: DummyConfig())
     monkeypatch.setattr(wtf, "ProjectFinder", DummyProjectFinder)
@@ -164,6 +165,7 @@ def test_add_wtf_entry_duplicate_does_not_save_or_commit(tmp_path, monkeypatch, 
 
         def commit_and_push(self, message: str):
             recorded["git_message"] = message
+            return True
 
     monkeypatch.setattr(wtf, "load_config", lambda: DummyConfig())
     monkeypatch.setattr(wtf, "ProjectFinder", DummyProjectFinder)

@@ -7,6 +7,7 @@ import pytest
 import yaml
 
 import update_log
+from src.publication import pending_directory, warn_unpublished
 
 
 # Test find_project function
@@ -756,10 +757,11 @@ def test_main_accepts_log_level_and_updates_log(monkeypatch, capsys, tmp_path):
         ],
     )
 
-    with pytest.raises(SystemExit) as exc:
-        update_log_src.main()
+    update_log_src.main()
 
     out = capsys.readouterr().out
     assert "Saved locally for repo1 in project test-project" in out
-    assert "NOT published" in out
-    assert exc.value.code == 2
+    assert "NOT published" not in out
+    assert not list(pending_directory().glob("*.json"))
+    warn_unpublished()
+    assert "unpublished" not in capsys.readouterr().out
