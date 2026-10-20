@@ -28,7 +28,7 @@ captains-log setup
 This will:
 - Create `~/.captains-log/` directory
 - Create `~/.git-hooks/` directory
-- Install the Git commit-msg hook
+- Install the commit-msg validation dispatcher and post-commit publisher
 - Configure Git to use the global hooks directory
 - Create a default config file at `~/.captains-log/config.yml`
 
@@ -113,12 +113,12 @@ uv pip install -e .
 
 2. captains-log setup
    └─> Creates ~/.captains-log/
-       └─> Installs commit-msg hook to ~/.git-hooks/
+       └─> Installs commit-msg dispatcher and post-commit publisher to ~/.git-hooks/
            └─> Configures Git: core.hooksPath = ~/.git-hooks/
                └─> Creates config.yml
 
 3. User commits in any repository
-   └─> Git runs ~/.git-hooks/commit-msg
+   └─> Git runs ~/.git-hooks/post-commit after creating the source commit
        └─> Hook calls update_log.py
            └─> Logs commit to daily markdown file
 ```

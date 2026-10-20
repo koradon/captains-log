@@ -21,6 +21,7 @@ from src.config import Config, load_config
 from src.git import GitOperations
 from src.logs.log_manager import LogManager
 from src.projects import ProjectFinder, ProjectInfo
+from src.publication import publish_manual_entry, warn_unpublished
 
 EMOJIS: list[str] = ["🎯", "🏆", "🚀", "⭐️", "🎉", "📌"]
 
@@ -115,6 +116,7 @@ def build_milestone_context(config: Config, project: ProjectInfo) -> MilestoneCo
 
 def add_milestone_entry(entry_text: str) -> None:
     """High-level API to add a milestone entry for the current project."""
+    warn_unpublished()
     config, project = resolve_project()
 
     # Pull remote changes before deciding where the entry goes, since the
@@ -137,7 +139,8 @@ def add_milestone_entry(entry_text: str) -> None:
         commit_message = (
             f"Add milestone entry to {ctx.project.name} for {ctx.log_date.year}"
         )
-        git_ops.commit_and_push(commit_message)
+        if not publish_manual_entry(git_ops, log_repo_path, commit_message):
+            raise SystemExit(1)
 
 
 def main() -> None:

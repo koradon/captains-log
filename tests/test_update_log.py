@@ -7,6 +7,7 @@ import pytest
 import yaml
 
 import update_log
+from src.publication import pending_directory, warn_unpublished
 
 
 # Test find_project function
@@ -307,7 +308,7 @@ def test_commit_and_push_no_changes(mock_run, tmp_path):
 
     with patch("builtins.print") as mock_print:
         update_log.commit_and_push(log_repo_path, "Test commit")
-        mock_print.assert_called_with("No changes to commit, skipping git operations")
+        mock_print.assert_called_with("Successfully published log updates")
 
 
 @patch("subprocess.run")
@@ -333,7 +334,10 @@ def test_main_insufficient_args(monkeypatch):
     # Set up insufficient arguments
     monkeypatch.setattr(sys, "argv", ["update_log.py", "repo1", "/tmp/repo1"])
 
-    update_log.main()
+    with pytest.raises(SystemExit) as exc:
+        update_log.main()
+
+    assert exc.value.code == 2
 
 
 @patch("builtins.print")
@@ -341,7 +345,7 @@ def test_main_insufficient_args(monkeypatch):
 def test_main_no_sha(mock_print):
     """Test main with no-sha commit"""
     update_log.main()
-    mock_print.assert_called_with("Skipping log update: No valid commit SHA")
+    mock_print.assert_any_call("Skipping log update: No valid commit SHA")
 
 
 @patch("builtins.print")
@@ -351,7 +355,7 @@ def test_main_no_sha(mock_print):
 def test_main_merge_commit(mock_print):
     """Test main with merge commit"""
     update_log.main()
-    mock_print.assert_called_with("Skipping log update: No valid commit SHA")
+    mock_print.assert_any_call("Skipping log update: No valid commit SHA")
 
 
 # Integration tests
@@ -546,8 +550,8 @@ def test_main_skips_when_running_from_log_repo(monkeypatch, capsys):
     assert "Skipping log update: Running from within log repository" in out
 
 
-def test_main_handles_exception_and_exits_zero(monkeypatch, capsys):
-    """If an exception occurs, main prints error and exits with code 0."""
+def test_main_handles_exception_and_exits_nonzero(monkeypatch, capsys):
+    """If an exception occurs, main reports failure and exits nonzero."""
 
     def boom():
         raise RuntimeError("boom")
@@ -564,7 +568,7 @@ def test_main_handles_exception_and_exits_zero(monkeypatch, capsys):
 
     out = capsys.readouterr().out
     assert "Error updating log: boom" in out
-    assert exc.value.code == 0
+    assert exc.value.code == 1
 
 
 def test_main_version_flag_prints_version_and_exits(monkeypatch, capsys):
@@ -672,7 +676,7 @@ def test_main_skips_private_repo_via_env(monkeypatch, capsys):
     assert "Skipping log update: repository is private" in out
 
 
-def test_main_accepts_log_level_and_updates_log(monkeypatch, capsys):
+def test_main_accepts_log_level_and_updates_log(monkeypatch, capsys, tmp_path):
     """update_log supports --log-level and still processes positional args."""
     from src import update_log as update_log_src
 
@@ -705,6 +709,7 @@ def test_main_accepts_log_level_and_updates_log(monkeypatch, capsys):
         def __init__(self) -> None:
             self.has_git_repo = False
             self.log_repo_path = None
+            self.file_path = tmp_path / "daily.md"
 
     class DummyLogData:
         def __init__(self) -> None:
@@ -755,4 +760,8 @@ def test_main_accepts_log_level_and_updates_log(monkeypatch, capsys):
     update_log_src.main()
 
     out = capsys.readouterr().out
-    assert "Updated log for repo1 in project test-project" in out
+    assert "Saved locally for repo1 in project test-project" in out
+    assert "NOT published" not in out
+    assert not list(pending_directory().glob("*.json"))
+    warn_unpublished()
+    assert "unpublished" not in capsys.readouterr().out

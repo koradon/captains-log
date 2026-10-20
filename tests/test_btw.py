@@ -73,6 +73,7 @@ def test_add_manual_entry_adds_and_commits(tmp_path, monkeypatch, capsys):
 
         def commit_and_push(self, message: str):
             recorded["git_message"] = message
+            return True
 
     monkeypatch.setattr(btw, "load_config", lambda: DummyConfig())
     monkeypatch.setattr(btw, "ProjectFinder", DummyProjectFinder)
@@ -163,6 +164,7 @@ def test_add_manual_entry_duplicate_does_not_save_or_commit(
 
         def commit_and_push(self, message: str):
             recorded["git_message"] = message
+            return True
 
     monkeypatch.setattr(btw, "load_config", lambda: DummyConfig())
     monkeypatch.setattr(btw, "ProjectFinder", DummyProjectFinder)

@@ -30,11 +30,16 @@ captains-log setup
 This will:
 - Create `~/.captains-log/` for configuration
 - Create `~/.git-hooks/` for global Git hooks
-- Install or update the `commit-msg` hook
+- Install or update the `commit-msg` validation dispatcher and `post-commit` logger
 - Configure `git config --global core.hooksPath ~/.git-hooks`
 - Create a default `~/.captains-log/config.yml` if it does not exist
 
 After that you can use `btw`, `wtf`, `wnext`, `stone`, and `captains-log` from anywhere in your shell.
+
+After upgrading an existing installation, run `captains-log setup` again to replace the
+old `commit-msg` logger and install `post-commit`. Logging runs in the background after
+the source commit exists, so each entry records that commit's SHA. Existing pre-commit
+validation wrappers are preserved.
 
 See [INSTALLATION.md](INSTALLATION.md) for more detailed installation and configuration examples.
 
@@ -91,7 +96,7 @@ projects:
 
 #### Private Repositories
 
-Set `private: true` on a project to prevent its commits from appearing in the daily log. The commit-msg hook still runs but silently skips the logging step, so other features (`btw`, `wtf`, `wnext`, `stone`) remain available.
+Set `private: true` on a project to prevent its commits from appearing in the daily log. The post-commit hook still runs but skips the logging step, so other features (`btw`, `wtf`, `wnext`, `stone`) remain available.
 
 You can also set the `CAPTAINS_LOG_PRIVATE` environment variable to override the config value for the current shell session (useful in CI or per-repo `.envrc` files):
 
@@ -265,7 +270,25 @@ uv run pytest tests/ -v
 ### Hook not running
 - Make sure you've run `captains-log setup` and it completed successfully
 - Check that `git config --global core.hooksPath` points to `~/.git-hooks`
-- Verify the `commit-msg` file exists in `~/.git-hooks/` and is executable
+- Verify `post-commit` exists in `~/.git-hooks/` and is executable
+
+### Entries saved locally but not published
+
+- Inspect `~/.captains-log/update-log.log`: each processing line includes timestamp, run ID,
+  source repo, SHA, stage, and exit status. `Saved locally; NOT published` means the remote
+  has not received the entry; only `Published` confirms publication.
+- Inspect `~/.captains-log/pending/*.json` for durable failure details. `btw`, `wtf`, `wnext`,
+  and `stone` warn when pending runs exist and exit 1 with `Saved locally; NOT published`
+  if publishing their own entry fails. A log directory that is not a Git repository is a
+  normal local save.
+- The next successful automatic run stages the pending local Markdown files together and
+  clears saved-run markers for that destination. It also retries previously committed
+  entries whose push failed.
+- Git locks are retried briefly. Only unchanged regular locks at least 24 hours old with
+  a successful no-holder ownership check are removed automatically. Live or uncertain
+  locks remain for manual inspection; missing `lsof` disables automatic recovery.
+
+See the [publication behavior and migration specification](docs/specs/20261020-publication-reliability.md).
 
 ### Pre-commit integration issues
 - Ensure you ran `captains-log setup` before `captains-log install-precommit-hooks`

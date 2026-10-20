@@ -130,8 +130,9 @@ def test_add_milestone_entry_writes_entry_and_commits(tmp_path, monkeypatch):
         def pull(self) -> bool:
             return True
 
-        def commit_and_push(self, message: str) -> None:
+        def commit_and_push(self, message: str) -> bool:
             created["message"] = message
+            return True
 
     monkeypatch.setattr(stone, "resolve_project", fake_resolve_project)
     monkeypatch.setattr(stone, "build_milestone_context", fake_build_context)
@@ -387,8 +388,8 @@ def test_add_milestone_entry_uses_year_dir_pulled_from_remote(tmp_path, monkeypa
             year_dir.mkdir(parents=True, exist_ok=True)
             return True
 
-        def commit_and_push(self, message: str) -> None:
-            pass
+        def commit_and_push(self, message: str) -> bool:
+            return True
 
     monkeypatch.setattr(stone, "resolve_project", fake_resolve_project)
     monkeypatch.setattr(stone, "GitOperations", FakeGitOperations)

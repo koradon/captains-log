@@ -19,10 +19,12 @@ from src.entries import EntryProcessor
 from src.git import GitOperations
 from src.logs import LogManager
 from src.projects import ProjectFinder
+from src.publication import publish_manual_entry, warn_unpublished
 
 
 def add_what_next_entry(entry_text: str, project_name: Optional[str], use_other: bool):
     """Add an entry to the 'Whats next' section."""
+    warn_unpublished()
     config = load_config()
 
     project_finder = ProjectFinder(config)
@@ -104,7 +106,10 @@ def add_what_next_entry(entry_text: str, project_name: Optional[str], use_other:
         if log_info.has_git_repo and log_info.log_repo_path:
             git_ops = GitOperations(log_info.log_repo_path)
             commit_message = f"Add What Next entry to {project.name} logs for {date.today().isoformat()}"
-            git_ops.commit_and_push(commit_message)
+            if not publish_manual_entry(
+                git_ops, log_info.log_repo_path, commit_message
+            ):
+                sys.exit(1)
 
         cli_logging.success(
             f"Added 'Whats next' entry to {project.name} "

@@ -1,0 +1,10 @@
+#!/bin/sh
+REPO_PATH=$(git rev-parse --show-toplevel) || exit 0
+REPO_NAME=$(basename "$REPO_PATH")
+COMMIT_SHA=$(git rev-parse --verify HEAD) || exit 0
+COMMIT_MSG=$(git log -1 --format=%s "$COMMIT_SHA") || exit 0
+mkdir -p "$HOME/.captains-log" || exit 0
+export PYTHONPATH="$HOME/.captains-log:$PYTHONPATH"
+# Diagnostics include the updater's exit status; publication never blocks Git.
+GIT_HOOK=1 python3 -m src.update_log "$REPO_NAME" "$REPO_PATH" "$COMMIT_SHA" "$COMMIT_MSG" >> "$HOME/.captains-log/update-log.log" 2>&1 < /dev/null &
+exit 0

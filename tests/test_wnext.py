@@ -210,6 +210,7 @@ def test_add_what_next_entry_adds_and_commits(tmp_path, monkeypatch, capsys):
 
         def commit_and_push(self, message: str):
             recorded["git_message"] = message
+            return True
 
     # Simulate running inside a nested git repository so that the default
     # subsection name is derived from the git root directory name rather than
@@ -316,6 +317,7 @@ def test_add_what_next_entry_with_other_section(tmp_path, monkeypatch, capsys):
 
         def commit_and_push(self, message: str):
             recorded["git_message"] = message
+            return True
 
     monkeypatch.setattr(wnext, "load_config", lambda: DummyConfig())
     monkeypatch.setattr(wnext, "ProjectFinder", DummyProjectFinder)
@@ -426,6 +428,7 @@ def test_add_what_next_entry_duplicate_does_not_save_or_commit(
 
         def commit_and_push(self, message: str):
             recorded["git_message"] = message
+            return True
 
     monkeypatch.setattr(wnext, "load_config", lambda: DummyConfig())
     monkeypatch.setattr(wnext, "ProjectFinder", DummyProjectFinder)

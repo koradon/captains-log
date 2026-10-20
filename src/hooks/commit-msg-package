@@ -1,21 +1,8 @@
-#!/bin/bash
-
-# Exit on any error
-set -e
-
-# Get repository information
-REPO_NAME=$(basename "$(git rev-parse --show-toplevel)")
-REPO_PATH=$(git rev-parse --show-toplevel)
-COMMIT_MSG=$(head -n1 "$1")
-
-# Get commit SHA (handle both pre-commit and post-commit scenarios)
-COMMIT_SHA=$(git rev-parse --verify HEAD 2>/dev/null || echo "no-sha")
-
-# Run the update script using the installed package
-export GIT_HOOK=1
-if ! python3 -m src.update_log "$REPO_NAME" "$REPO_PATH" "$COMMIT_SHA" "$COMMIT_MSG"; then
-    echo "Warning: Captain's Log update failed, but commit will continue"
-    echo "Check the script output above for errors"
-    exit 0  # Don't fail the commit
+#!/bin/sh
+# Compatibility dispatcher. Install post-commit alongside this hook for logging.
+# Run captains-log setup after upgrading to replace the legacy commit-msg logger.
+HOOKS_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+if [ -x "$HOOKS_DIR/commit-msg-precommit" ]; then
+    exec "$HOOKS_DIR/commit-msg-precommit" "$@"
 fi
-
+exit 0
