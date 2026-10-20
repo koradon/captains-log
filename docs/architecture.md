@@ -31,7 +31,9 @@ worktree still attempts push for previously committed but unpublished entries.
 
 Only successful publication clears the applicable saved-run markers. Failed runs return
 nonzero and retain stage details. `btw`, `wtf`, `wnext`, and `stone` warn about those markers
-before their normal manual-entry flow. This does not add serialization across writers.
+before their normal manual-entry flow, and report a failed publication of their own entry
+the same way (exit 1, pending record). A log directory without a Git repository is a plain
+local save with no pending state. This does not add serialization across writers.
 
 ## Subsystems / modules
 

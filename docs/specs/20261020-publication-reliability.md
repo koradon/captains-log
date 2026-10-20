@@ -23,15 +23,17 @@ Background logging must distinguish those outcomes and retain inspectable pendin
   repository is a complete save: exit 0 with no pending record.
 - A local save prints `Saved locally`. A failed publication prints `Saved locally; NOT
   published`; only successful push prints `Published`. Config/read/save failures exit 1.
-- Before saving to a Git log repository, create `~/.captains-log/pending/<run>.json` atomically, containing the source
-  identity, destination, file, timestamp, stage, exit status, and whether the file was saved.
+- Before saving to a Git log repository, create `~/.captains-log/pending/<run>.json`
+  atomically, containing the source identity, destination, file, timestamp, stage, exit
+  status, and whether the file was saved.
   A failure updates this record. A successful automatic run clears its own record and the
   snapshot of earlier saved records for the same destination. Other destinations,
   incomplete saves, malformed records, and runs started after that snapshot remain visible.
 - `btw`, `wtf`, `wnext`, and `stone` report a failed publication of their own entry as
   `Saved locally; NOT published`, exit 1, and leave a pending record; a successful publication
-  clears saved records for that destination. They also warn about pending automatic runs, including when a
-  duplicate manual entry would cause no write. These warnings are visible at compact level.
+  clears saved records for that destination. They also warn about pending automatic runs,
+  including when a duplicate manual entry would cause no write. These warnings are visible
+  at compact level.
 - Wait five times for 0.2 seconds for top-level Git locks. Resolve `.git` pointers and common
   directories for linked worktrees. Recover only regular lock files whose mtime **and**
   ctime are at least 24 hours old, after `lsof` on POSIX reports no holder (exit 1, empty

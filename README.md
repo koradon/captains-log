@@ -278,7 +278,9 @@ uv run pytest tests/ -v
   source repo, SHA, stage, and exit status. `Saved locally; NOT published` means the remote
   has not received the entry; only `Published` confirms publication.
 - Inspect `~/.captains-log/pending/*.json` for durable failure details. `btw`, `wtf`, `wnext`,
-  and `stone` warn when pending automatic runs exist.
+  and `stone` warn when pending runs exist and exit 1 with `Saved locally; NOT published`
+  if publishing their own entry fails. A log directory that is not a Git repository is a
+  normal local save.
 - The next successful automatic run stages the pending local Markdown files together and
   clears saved-run markers for that destination. It also retries previously committed
   entries whose push failed.
