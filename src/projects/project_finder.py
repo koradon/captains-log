@@ -1,11 +1,48 @@
 """Project discovery functionality for Captain's Log."""
 
 import configparser
+import re
 from pathlib import Path
 from typing import Optional
+from urllib.parse import urlsplit
 
 from src.config.config_models import Config, ProjectConfig
 from src.projects.project_models import ProjectInfo
+
+_SCP_LIKE_REMOTE = re.compile(r"^(?:[^@/:]+@)?(?P<host>[^@/:]+):(?P<path>[^/].*)$")
+
+
+def normalize_remote_url(url: str) -> str:
+    """Reduce a git remote URL to a canonical `host/owner/repo` identity.
+
+    The scheme (https, http, ssh, git, scp-like `git@host:owner/repo`), any
+    `user@` or credentials, a port, a trailing `.git` or slash, and host/path
+    case are all ignored, so the same repository spelled differently by two
+    clones compares equal.
+
+    Args:
+        url: Remote URL as stored in a git config
+
+    Returns:
+        The lowercased `host/path` identity, or the stripped URL itself if it
+        has no recognizable host (e.g. a local filesystem path)
+    """
+    url = url.strip()
+
+    if "://" in url:
+        parts = urlsplit(url)
+        host, path = parts.hostname or "", parts.path
+    else:
+        scp_like = _SCP_LIKE_REMOTE.match(url)
+        if scp_like is None:
+            return url
+        host, path = scp_like.group("host"), scp_like.group("path")
+
+    path = path.strip("/").removesuffix(".git").strip("/")
+    if not host:
+        return url
+
+    return f"{host}/{path}".lower()
 
 
 class ProjectFinder:
@@ -87,7 +124,7 @@ class ProjectFinder:
         if remote_a is None or remote_b is None:
             return True
 
-        return remote_a == remote_b
+        return normalize_remote_url(remote_a) == normalize_remote_url(remote_b)
 
     def _git_remote_url(self, repo: Path) -> Optional[str]:
         """Read the "origin" remote URL from a repo's git config, if any.

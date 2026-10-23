@@ -4,8 +4,11 @@ import os
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+
 from src.config import Config, ProjectConfig
 from src.projects import ProjectFinder, ProjectInfo
+from src.projects.project_finder import normalize_remote_url
 
 
 # ProjectInfo tests
@@ -487,3 +490,109 @@ def test_project_finder_get_project_by_name_not_exists():
     project = finder.get_project_by_name("nonexistent")
 
     assert project is None
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "https://github.com/koradon/auth-service.git",
+        "https://github.com/koradon/auth-service",
+        "https://github.com/koradon/auth-service/",
+        "http://github.com/koradon/auth-service.git",
+        "https://user:pa%40ss@github.com/koradon/auth-service.git",
+        "git@github.com:koradon/auth-service.git",
+        "git@github.com:koradon/auth-service",
+        "github.com:koradon/auth-service.git",
+        "ssh://git@github.com/koradon/auth-service.git",
+        "ssh://git@github.com:22/koradon/auth-service",
+        "git://github.com/koradon/auth-service.git",
+        "HTTPS://GitHub.com/Koradon/Auth-Service.git",
+    ],
+)
+def test_normalize_remote_url_ignores_spelling(url):
+    expected = "github.com/koradon/auth-service"
+
+    result = normalize_remote_url(url)
+
+    assert result == expected
+
+
+@pytest.mark.parametrize(
+    "other",
+    [
+        "git@github.com:someone-else/auth-service.git",
+        "git@gitlab.com:koradon/auth-service.git",
+        "git@github.com:koradon/users-service.git",
+    ],
+)
+def test_normalize_remote_url_different_repos_differ(other):
+    first = "https://github.com/koradon/auth-service.git"
+
+    result = normalize_remote_url(other)
+
+    assert result != normalize_remote_url(first)
+
+
+def test_normalize_remote_url_without_host_returned_stripped():
+    result = normalize_remote_url("  /srv/git/auth-service  ")
+
+    assert result == "/srv/git/auth-service"
+
+
+def _write_remote(repo, url):
+    git_dir = repo / ".git"
+    git_dir.mkdir(parents=True)
+    (git_dir / "config").write_text(f'[remote "origin"]\n\turl = {url}\n')
+
+
+def test_same_remote_matches_across_spellings(tmp_path):
+    _write_remote(tmp_path / "a", "https://github.com/koradon/auth-service.git")
+    _write_remote(tmp_path / "b", "git@github.com:koradon/auth-service")
+    finder = ProjectFinder(Config.from_dict({}))
+
+    result = finder._same_remote(tmp_path / "a", tmp_path / "b")
+
+    assert result is True
+
+
+def test_same_remote_conflicting_owner_does_not_match(tmp_path):
+    _write_remote(tmp_path / "a", "https://github.com/koradon/auth-service.git")
+    _write_remote(tmp_path / "b", "git@github.com:someone-else/auth-service.git")
+    finder = ProjectFinder(Config.from_dict({}))
+
+    result = finder._same_remote(tmp_path / "a", tmp_path / "b")
+
+    assert result is False
+
+
+def test_same_remote_missing_remote_on_one_side_matches(tmp_path):
+    _write_remote(tmp_path / "a", "https://github.com/koradon/auth-service.git")
+    (tmp_path / "b" / ".git").mkdir(parents=True)
+    finder = ProjectFinder(Config.from_dict({}))
+
+    result = finder._same_remote(tmp_path / "a", tmp_path / "b")
+
+    assert result is True
+
+
+def test_project_finder_find_project_pooled_worktree_ssh_remote_vs_https_canonical(
+    tmp_path,
+):
+    root = tmp_path / "tripper"
+    nested_git = root / "auth-service" / ".git"
+    nested_git.mkdir(parents=True)
+    (nested_git / "config").write_text(
+        '[remote "origin"]\n\turl = https://github.com/koradon/auth-service.git\n'
+    )
+    elsewhere = tmp_path / "pooled" / "auth-service"
+    _make_worktree_checkout(
+        elsewhere,
+        tmp_path / "worktree-common" / ".git",
+        "git@github.com:koradon/auth-service.git",
+    )
+    config = Config.from_dict({"projects": {"tripper": {"root": str(root)}}})
+    finder = ProjectFinder(config)
+
+    project = finder.find_project(str(elsewhere))
+
+    assert project.name == "tripper"

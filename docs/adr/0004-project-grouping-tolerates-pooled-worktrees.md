@@ -46,3 +46,8 @@ Shipped together with
 on the earlier nested-repo support in
 `ProjectFinder` (PR #39), which handled repos nested under a configured root but did not yet
 handle a repo checked out somewhere unrelated entirely.
+
+The origin-remote comparison is made on a canonical `host/owner/repo` identity
+(`normalize_remote_url`), not the literal URL string, so an https clone and an ssh clone of
+the same repository (`https://github.com/o/r.git` vs `git@github.com:o/r.git`) still group
+together (#64).
