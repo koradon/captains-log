@@ -51,3 +51,8 @@ The origin-remote comparison is made on a canonical `host/owner/repo` identity
 (`normalize_remote_url`), not the literal URL string, so an https clone and an ssh clone of
 the same repository (`https://github.com/o/r.git` vs `git@github.com:o/r.git`) still group
 together (#64).
+
+Canonicalization accepts only credential-free HTTP(S) URLs without ports,
+`git@host:owner/repo[.git]`, and `ssh://git@host/owner/repo[.git]` without ports.
+HTTP(S) also accepts a trailing slash. Only the host is lowercased; paths remain
+case-sensitive. All other forms compare literally and never equal canonical forms.

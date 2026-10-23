@@ -4,45 +4,31 @@ import configparser
 import re
 from pathlib import Path
 from typing import Optional
-from urllib.parse import urlsplit
 
 from src.config.config_models import Config, ProjectConfig
 from src.projects.project_models import ProjectInfo
 
-_SCP_LIKE_REMOTE = re.compile(r"^(?:[^@/:]+@)?(?P<host>[^@/:]+):(?P<path>[^/].*)$")
+_REMOTE_URL = re.compile(
+    r"(?:https?://|ssh://git@)(?P<host>[A-Za-z0-9.-]+)/"
+    r"(?P<path>[^/\s:?#@]+/[^/\s:?#@]+?)(?:\.git)?(?P<slash>/?)"
+)
+_SCP_LIKE_REMOTE = re.compile(
+    r"git@(?P<host>[A-Za-z0-9.-]+):"
+    r"(?P<path>[^/\s:?#@]+/[^/\s:?#@]+?)(?:\.git)?"
+)
 
 
-def normalize_remote_url(url: str) -> str:
-    """Reduce a git remote URL to a canonical `host/owner/repo` identity.
+def normalize_remote_url(url: str) -> tuple[str, str]:
+    """Canonicalize approved remote forms, retaining raw text for all others.
 
-    The scheme (https, http, ssh, git, scp-like `git@host:owner/repo`), any
-    `user@` or credentials, a port, a trailing `.git` or slash, and host/path
-    case are all ignored, so the same repository spelled differently by two
-    clones compares equal.
-
-    Args:
-        url: Remote URL as stored in a git config
-
-    Returns:
-        The lowercased `host/path` identity, or the stripped URL itself if it
-        has no recognizable host (e.g. a local filesystem path)
+    Only credential-free HTTP(S), git-user SSH without ports, and git-user
+    SCP forms are canonicalized. Host case is ignored; path case is preserved.
+    Only HTTP(S) forms accept a trailing slash.
     """
-    url = url.strip()
-
-    if "://" in url:
-        parts = urlsplit(url)
-        host, path = parts.hostname or "", parts.path
-    else:
-        scp_like = _SCP_LIKE_REMOTE.match(url)
-        if scp_like is None:
-            return url
-        host, path = scp_like.group("host"), scp_like.group("path")
-
-    path = path.strip("/").removesuffix(".git").strip("/")
-    if not host:
-        return url
-
-    return f"{host}/{path}".lower()
+    match = _REMOTE_URL.fullmatch(url) or _SCP_LIKE_REMOTE.fullmatch(url)
+    if match is None or (url.startswith("ssh://") and match.group("slash")):
+        return "raw", url
+    return "canonical", f"{match.group('host').lower()}/{match.group('path')}"
 
 
 class ProjectFinder:
