@@ -200,7 +200,10 @@ stone "Completed migration to new infrastructure"
 #### How They Work:
 - **Smart Project Detection**: Uses the same project detection logic as git commits
   - If you're in a configured project directory → logs to that project
-  - If not configured → uses the current directory name as project
+  - Clones and worktrees outside configured roots can still join the same project; see
+    [project grouping rules](docs/adr/0004-project-grouping-tolerates-pooled-worktrees.md)
+    for directory-name matching and equivalent HTTPS/SSH origin URLs
+  - Otherwise → uses the repository directory name as project
 - **Different Sections**:
   - `btw` entries appear in the "What I did" section under "## other"
   - `wtf` entries appear in the "What Broke or Got Weird" section

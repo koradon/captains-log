@@ -46,3 +46,13 @@ Shipped together with
 on the earlier nested-repo support in
 `ProjectFinder` (PR #39), which handled repos nested under a configured root but did not yet
 handle a repo checked out somewhere unrelated entirely.
+
+For the forms listed below, the origin-remote comparison uses a canonical
+`host/owner/repo` identity (`normalize_remote_url`), so an https clone and an ssh clone of
+the same repository (`https://github.com/o/r.git` vs `git@github.com:o/r.git`) still group
+together (#64).
+
+Canonicalization accepts only credential-free HTTP(S) URLs without ports,
+`git@host:owner/repo[.git]`, and `ssh://git@host/owner/repo[.git]` without ports.
+HTTP(S) also accepts a trailing slash. Only the host is lowercased; paths remain
+case-sensitive. All other forms compare literally and never equal canonical forms.

@@ -4,8 +4,11 @@ import os
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+
 from src.config import Config, ProjectConfig
 from src.projects import ProjectFinder, ProjectInfo
+from src.projects.project_finder import normalize_remote_url
 
 
 # ProjectInfo tests
@@ -487,3 +490,152 @@ def test_project_finder_get_project_by_name_not_exists():
     project = finder.get_project_by_name("nonexistent")
 
     assert project is None
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "https://github.com/koradon/auth-service.git",
+        "https://github.com/koradon/auth-service",
+        "https://github.com/koradon/auth-service/",
+        "http://github.com/koradon/auth-service.git",
+        "https://GitHub.com/koradon/auth-service.git/",
+        "git@github.com:koradon/auth-service.git",
+        "git@github.com:koradon/auth-service",
+        "ssh://git@github.com/koradon/auth-service.git",
+    ],
+)
+def test_normalize_remote_url_ignores_spelling(url):
+    expected = ("canonical", "github.com/koradon/auth-service")
+
+    result = normalize_remote_url(url)
+
+    assert result == expected
+
+
+@pytest.mark.parametrize(
+    "other",
+    [
+        "git@github.com:someone-else/auth-service.git",
+        "git@gitlab.com:koradon/auth-service.git",
+        "git@github.com:koradon/users-service.git",
+    ],
+)
+def test_normalize_remote_url_different_repos_differ(other):
+    first = "https://github.com/koradon/auth-service.git"
+
+    result = normalize_remote_url(other)
+
+    assert result != normalize_remote_url(first)
+
+
+def test_normalize_remote_url_without_host_returned_literally():
+    result = normalize_remote_url("  /srv/git/auth-service  ")
+
+    assert result == ("raw", "  /srv/git/auth-service  ")
+
+
+def _write_remote(repo, url):
+    git_dir = repo / ".git"
+    git_dir.mkdir(parents=True)
+    (git_dir / "config").write_text(f'[remote "origin"]\n\turl = {url}\n')
+
+
+def test_same_remote_matches_across_spellings(tmp_path):
+    _write_remote(tmp_path / "a", "https://github.com/koradon/auth-service.git")
+    _write_remote(tmp_path / "b", "git@github.com:koradon/auth-service")
+    finder = ProjectFinder(Config.from_dict({}))
+
+    result = finder._same_remote(tmp_path / "a", tmp_path / "b")
+
+    assert result is True
+
+
+def test_same_remote_conflicting_owner_does_not_match(tmp_path):
+    _write_remote(tmp_path / "a", "https://github.com/koradon/auth-service.git")
+    _write_remote(tmp_path / "b", "git@github.com:someone-else/auth-service.git")
+    finder = ProjectFinder(Config.from_dict({}))
+
+    result = finder._same_remote(tmp_path / "a", tmp_path / "b")
+
+    assert result is False
+
+
+def test_same_remote_missing_remote_on_one_side_matches(tmp_path):
+    _write_remote(tmp_path / "a", "https://github.com/koradon/auth-service.git")
+    (tmp_path / "b" / ".git").mkdir(parents=True)
+    finder = ProjectFinder(Config.from_dict({}))
+
+    result = finder._same_remote(tmp_path / "a", tmp_path / "b")
+
+    assert result is True
+
+
+def test_project_finder_find_project_pooled_worktree_ssh_remote_vs_https_canonical(
+    tmp_path,
+):
+    root = tmp_path / "tripper"
+    nested_git = root / "auth-service" / ".git"
+    nested_git.mkdir(parents=True)
+    (nested_git / "config").write_text(
+        '[remote "origin"]\n\turl = https://github.com/koradon/auth-service.git\n'
+    )
+    elsewhere = tmp_path / "pooled" / "auth-service"
+    _make_worktree_checkout(
+        elsewhere,
+        tmp_path / "worktree-common" / ".git",
+        "git@github.com:koradon/auth-service.git",
+    )
+    config = Config.from_dict({"projects": {"tripper": {"root": str(root)}}})
+    finder = ProjectFinder(config)
+
+    project = finder.find_project(str(elsewhere))
+
+    assert project.name == "tripper"
+
+
+@pytest.mark.parametrize(
+    "first,second",
+    [
+        ("ssh://git@host:2222/team/api.git", "ssh://git@host:2223/team/api.git"),
+        ("https://host/team/API.git", "git@host:team/api.git"),
+        ("ssh://alice@host/team/api.git", "ssh://bob@host/team/api.git"),
+        ("https://host/team/api.git", "https://user@host/team/api.git"),
+        ("https://host/team/api.git", "https://host:443/team/api.git"),
+        ("https://host/team/api.git", "git://host/team/api.git"),
+        ("https://host/team/api.git", "host/team/api"),
+        ("https://host/team/api.git", "host:team/api.git"),
+        ("https://host/team/api.git", "ssh://git@host/team/api.git/"),
+        ("https://host/team/api.git", "https://[broken/team/api.git"),
+    ],
+)
+@pytest.mark.parametrize("reverse", [False, True])
+def test_conflicting_remote_forms_do_not_group(tmp_path, first, second, reverse):
+    root = tmp_path / "project"
+    pooled = tmp_path / "pool" / "api"
+    if reverse:
+        first, second = second, first
+    _write_remote(root / "api", first)
+    _write_remote(pooled, second)
+    finder = ProjectFinder(
+        Config.from_dict({"projects": {"project": {"root": str(root)}}})
+    )
+
+    assert finder.find_project(str(pooled)).name == "api"
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "ssh://git@host:2222/team/api.git",
+        "ssh://alice@host/team/api.git",
+        "git://host/team/api.git",
+        "https://[broken/team/api.git",
+    ],
+)
+def test_unrecognized_remotes_compare_literally(tmp_path, url):
+    _write_remote(tmp_path / "a", url)
+    _write_remote(tmp_path / "b", url)
+    finder = ProjectFinder(Config.from_dict({}))
+
+    assert finder._same_remote(tmp_path / "a", tmp_path / "b") is True
