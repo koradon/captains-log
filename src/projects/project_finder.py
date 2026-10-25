@@ -1,11 +1,34 @@
 """Project discovery functionality for Captain's Log."""
 
 import configparser
+import re
 from pathlib import Path
 from typing import Optional
 
 from src.config.config_models import Config, ProjectConfig
 from src.projects.project_models import ProjectInfo
+
+_REMOTE_URL = re.compile(
+    r"(?:https?://|ssh://git@)(?P<host>[A-Za-z0-9.-]+)/"
+    r"(?P<path>[^/\s:?#@]+/[^/\s:?#@]+?)(?:\.git)?(?P<slash>/?)"
+)
+_SCP_LIKE_REMOTE = re.compile(
+    r"git@(?P<host>[A-Za-z0-9.-]+):"
+    r"(?P<path>[^/\s:?#@]+/[^/\s:?#@]+?)(?:\.git)?"
+)
+
+
+def normalize_remote_url(url: str) -> tuple[str, str]:
+    """Canonicalize approved remote forms, retaining raw text for all others.
+
+    Only credential-free HTTP(S), git-user SSH without ports, and git-user
+    SCP forms are canonicalized. Host case is ignored; path case is preserved.
+    Only HTTP(S) forms accept a trailing slash.
+    """
+    match = _REMOTE_URL.fullmatch(url) or _SCP_LIKE_REMOTE.fullmatch(url)
+    if match is None or (url.startswith("ssh://") and match.group("slash")):
+        return "raw", url
+    return "canonical", f"{match.group('host').lower()}/{match.group('path')}"
 
 
 class ProjectFinder:
@@ -87,7 +110,7 @@ class ProjectFinder:
         if remote_a is None or remote_b is None:
             return True
 
-        return remote_a == remote_b
+        return normalize_remote_url(remote_a) == normalize_remote_url(remote_b)
 
     def _git_remote_url(self, repo: Path) -> Optional[str]:
         """Read the "origin" remote URL from a repo's git config, if any.
