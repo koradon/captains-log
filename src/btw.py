@@ -60,7 +60,7 @@ def add_manual_entry(entry_text: str):
         log_manager.save_log(log_info, log_data)
 
         # Commit and push if we have a git repository
-        if log_info.has_git_repo:
+        if log_info.log_repo_path is not None:
             git_ops = GitOperations(log_info.log_repo_path)
             commit_message = f"Add manual entry to {project.name} logs for {date.today().isoformat()}"
             if not publish_manual_entry(

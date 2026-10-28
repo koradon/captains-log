@@ -1,6 +1,7 @@
 """Configuration loading functionality for Captain's Log."""
 
 from pathlib import Path
+from typing import Optional
 
 import yaml
 
@@ -15,7 +16,7 @@ class ConfigLoader:
     def __init__(self, config_path: Path = None):
         """Initialize with optional custom config path."""
         self.config_path = config_path or self.DEFAULT_CONFIG_PATH
-        self._cached_config = None
+        self._cached_config: Optional[Config] = None
 
     def load_config(self, force_reload: bool = False) -> Config:
         """Load configuration from file, with caching."""

@@ -55,7 +55,7 @@ def get_milestone_file_path(
 
     # Mirror LogManager.get_log_file_info base directory logic
     log_repo_path = project.log_repo or config.global_log_repo
-    base_dir = log_manager._get_base_directory(project, log_repo_path)  # type: ignore[attr-defined]
+    base_dir = log_manager._get_base_directory(project, log_repo_path)
 
     year_str = str(log_date.year)
     year_dir = base_dir / year_str

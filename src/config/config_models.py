@@ -1,7 +1,7 @@
 """Configuration data models for Captain's Log."""
 
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, Optional, Union
 
@@ -50,7 +50,7 @@ class Config:
     """Main configuration for Captain's Log."""
 
     global_log_repo: Optional[Path] = None
-    projects: Dict[str, ProjectConfig] = None
+    projects: Dict[str, ProjectConfig] = field(default_factory=dict)
 
     def __post_init__(self):
         """Initialize empty projects dict if None."""
