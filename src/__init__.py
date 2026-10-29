@@ -11,7 +11,7 @@ try:
 except PackageNotFoundError:
     # Package is not installed, try to get version from _version.py
     try:
-        from ._version import version as __version__  # type: ignore
+        from ._version import version as __version__
     except ImportError:
         # Fallback version for development
         __version__ = "0.0.0.dev0+unknown"

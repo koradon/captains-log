@@ -2,6 +2,7 @@
 
 from enum import Enum
 from pathlib import Path
+from typing import Dict, List
 
 from src.logs.log_models import LogData
 
@@ -49,9 +50,9 @@ class LogParser:
             LogData containing the parsed information
         """
         lines = content.splitlines()
-        repos = {}
+        repos: Dict[str, List[str]] = {}
         what_broke = []
-        what_next = {}
+        what_next: Dict[str, List[str]] = {}
         current_section = None
         current_repo = None
         current_next_section = None
