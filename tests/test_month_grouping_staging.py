@@ -5,6 +5,7 @@ import subprocess
 import pytest
 
 from src.git import GitOperations
+from tests.conftest import disable_git_hooks
 
 
 def git(repo, *args):
@@ -22,6 +23,7 @@ def init_log_repo(tmp_path):
     remote = tmp_path / "remote.git"
     git(tmp_path, "init", "--bare", "--initial-branch=main", str(remote))
     git(tmp_path, "init", "--initial-branch=main", str(repo))
+    disable_git_hooks(repo)
     git(repo, "config", "user.email", "sandbox@example.invalid")
     git(repo, "config", "user.name", "Sandbox")
     (repo / ".gitattributes").write_text("*.md merge=union\n")
