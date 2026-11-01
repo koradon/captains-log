@@ -1,5 +1,7 @@
 """Git operations for Captain's Log."""
 
+from __future__ import annotations
+
 import os
 import shutil
 import stat
@@ -183,149 +185,148 @@ class GitOperations:
         except (subprocess.CalledProcessError, ValueError):
             return False
 
-    def add_all(self) -> bool:
-        """Add all changes to the git staging area.
+    def _should_publish_path(self, relative_path: str) -> bool:
+        """True when a repo-relative path is a .md file or dir containing .md files."""
+        if relative_path.endswith(".md"):
+            return True
+        path_obj = self.repo_path / relative_path
+        return path_obj.is_dir() and any(
+            f.suffix == ".md" for f in path_obj.rglob("*.md")
+        )
 
-        Safeguard: Only adds .md files and directories containing .md files
-        to prevent accidentally committing unwanted files.
+    def _add_parent_directories(self, relative_path: str, paths: set[str]) -> None:
+        path_obj = self.repo_path / relative_path
+        parent = path_obj.parent
+        while parent != self.repo_path:
+            paths.add(str(parent.relative_to(self.repo_path)))
+            next_parent = parent.parent
+            if next_parent == parent:
+                break
+            parent = next_parent
 
-        Note: git status --porcelain does NOT truncate output - it will return
-        all files regardless of count. However, we batch add files to avoid
-        command line length limits and improve performance with large file lists.
+    @staticmethod
+    def _parse_porcelain_z(data: bytes) -> list[tuple[str, str, str | None]]:
+        """Parse `git status --porcelain -z` into (xy, path, old_path) tuples.
 
-        Returns:
-            True if successful, False otherwise
+        For renames/copies, path is the destination and old_path is the source.
         """
+        entries: list[tuple[str, str, str | None]] = []
+        pos = 0
+        length = len(data)
+
+        def read_path() -> str:
+            nonlocal pos
+            end = data.index(0, pos)
+            value = data[pos:end].decode("utf-8", "surrogateescape")
+            pos = end + 1
+            return value
+
+        while pos + 3 <= length:
+            status_x, status_y, separator = data[pos], data[pos + 1], data[pos + 2]
+            if separator != ord(" "):
+                break
+            xy = chr(status_x) + chr(status_y)
+            pos += 3
+            if xy[0] in "RC":
+                new_path = read_path()
+                old_path = read_path()
+                entries.append((xy, new_path, old_path))
+            else:
+                entries.append((xy, read_path(), None))
+        return entries
+
+    def _stage_add_path(self, relative_path: str) -> bool:
+        full_path = self.repo_path / relative_path
+        if not full_path.exists():
+            return True
         try:
-            # Get list of changed files from git status
-            # Note: git status --porcelain outputs all files (no truncation),
-            # but subprocess.run with capture_output=True buffers all output in memory
-            status_result = self._run_git(
-                ["-C", str(self.repo_path), "status", "--porcelain"],
+            self._run_git(
+                ["-C", str(self.repo_path), "add", "--", relative_path],
                 check=True,
                 capture_output=True,
                 text=True,
             )
-
-            if not status_result.stdout.strip():
-                # No changes to add
-                return True
-
-            # Parse status output and filter to .md files and directories
-            paths_to_add = set()
-
-            for line in status_result.stdout.strip().split("\n"):
-                if not line.strip():
-                    continue
-
-                # Git status porcelain format: XY <path>
-                # X = index status, Y = working tree status (e.g. " M", "M ", "A ", "??", "R ").
-                # Strip leading/trailing whitespace and split once to get status and path.
-                parts = line.strip().split(maxsplit=1)
-                if len(parts) != 2:
-                    continue
-                status, file_path = parts
-                file_path = file_path.strip()
-
-                # Handle renamed files (format: "R  old -> new")
-                if "R" in status:
-                    parts = file_path.split(" -> ")
-                    if len(parts) == 2:
-                        old_path, new_path = parts
-                        # Add both old (for deletion) and new (for addition) if .md files
-                        if old_path.endswith(".md"):
-                            paths_to_add.add(old_path)
-                        if new_path.endswith(".md"):
-                            paths_to_add.add(new_path)
-                            # Also add parent directories if file is in a subdirectory
-                            new_path_obj = Path(self.repo_path) / new_path
-                            parent = new_path_obj.parent
-                            while parent != Path(self.repo_path):
-                                paths_to_add.add(
-                                    str(parent.relative_to(self.repo_path))
-                                )
-                                next_parent = parent.parent
-                                if next_parent == parent:  # Reached filesystem root
-                                    break
-                                parent = next_parent
-                    continue
-
-                # Check if it's a .md file
-                if file_path.endswith(".md"):
-                    paths_to_add.add(file_path)
-                    # If file is in a subdirectory, also add parent directories
-                    file_path_obj = Path(self.repo_path) / file_path
-                    parent = file_path_obj.parent
-                    while parent != Path(self.repo_path):
-                        paths_to_add.add(str(parent.relative_to(self.repo_path)))
-                        next_parent = parent.parent
-                        if next_parent == parent:  # Reached filesystem root
-                            break
-                        parent = next_parent
-                # Check if it's a directory (untracked directories show up without extension)
-                else:
-                    path_obj = Path(self.repo_path) / file_path
-                    if path_obj.is_dir():
-                        # Check if directory contains any .md files
-                        if any(f.suffix == ".md" for f in path_obj.rglob("*.md")):
-                            paths_to_add.add(file_path)
-
-            # Add all paths (files and directories)
-            if paths_to_add:
-                sorted_paths = sorted(paths_to_add)
-
-                # Batch add files to avoid too many individual git commands
-                # Git can handle adding multiple files at once, which is more efficient
-                # However, we need to be careful about command line length limits
-                # Typical limit is ~128KB on most systems, so we batch in chunks
-                MAX_ARGS_LENGTH = 100000  # Conservative limit (~100KB)
-                BATCH_SIZE = (
-                    100  # Process files in batches to avoid command line limits
-                )
-
-                # Process in batches to avoid command line length limits
-                for i in range(0, len(sorted_paths), BATCH_SIZE):
-                    batch = sorted_paths[i : i + BATCH_SIZE]
-                    # Estimate command length (rough approximation)
-                    cmd_length = (
-                        sum(len(str(p)) for p in batch) + 100
-                    )  # +100 for git command overhead
-
-                    if cmd_length > MAX_ARGS_LENGTH or len(batch) == 1:
-                        # Add individually if batch would be too long or only one file
-                        for path in batch:
-                            try:
-                                self._run_git(
-                                    ["-C", str(self.repo_path), "add", path],
-                                    check=True,
-                                    capture_output=True,
-                                    text=True,
-                                )
-                            except subprocess.CalledProcessError as e:
-                                print(
-                                    f"Error: git add failed for {path}: {e.stderr or e}"
-                                )
-                                raise
-                    else:
-                        # Batch add multiple files at once
-                        try:
-                            self._run_git(
-                                ["-C", str(self.repo_path), "add"] + batch,
-                                check=True,
-                                capture_output=True,
-                                text=True,
-                            )
-                        except subprocess.CalledProcessError as e:
-                            joined_paths = " ".join(batch)
-                            print(
-                                "Error: git add failed for batch "
-                                f"({joined_paths}): {e.stderr or e}"
-                            )
-                            raise
-
             return True
+        except subprocess.CalledProcessError as error:
+            print(f"Error: git add failed for {relative_path}: {error.stderr or error}")
+            return False
+
+    def _stage_deletion(self, relative_path: str) -> bool:
+        commands = (
+            ["add", "-u", "--", relative_path],
+            ["rm", "--cached", "--ignore-unmatch", "--", relative_path],
+        )
+        last_error = ""
+        for command in commands:
+            try:
+                self._run_git(
+                    ["-C", str(self.repo_path), *command],
+                    check=True,
+                    capture_output=True,
+                    text=True,
+                )
+                return True
+            except subprocess.CalledProcessError as error:
+                last_error = error.stderr or str(error)
+        print(f"Error: could not stage deletion for {relative_path}: {last_error}")
+        return False
+
+    def add_all(self) -> bool:
+        """Stage log-repository changes for commit.
+
+        Reads NUL-separated porcelain status so renames and spaced paths are
+        unambiguous. Only .md files and directories that contain .md files are
+        staged. Missing rename sources are never passed to ``git add``; deletions
+        use ``git add -u``. One failing path is reported but does not abort the
+        rest.
+        """
+        try:
+            status_result = self._run_git(
+                ["-C", str(self.repo_path), "status", "--porcelain", "-z"],
+                check=True,
+                capture_output=True,
+            )
         except subprocess.CalledProcessError:
             return False
+
+        if not status_result.stdout:
+            return True
+
+        paths_to_add: set[str] = set()
+        paths_to_delete: set[str] = set()
+
+        for xy, path, old_path in self._parse_porcelain_z(status_result.stdout):
+            if old_path is not None:
+                new_path = path
+                if self._should_publish_path(new_path):
+                    paths_to_add.add(new_path)
+                    self._add_parent_directories(new_path, paths_to_add)
+                if self._should_publish_path(old_path):
+                    old_full = self.repo_path / old_path
+                    if old_full.exists():
+                        paths_to_add.add(old_path)
+                    elif xy[0] != "R":
+                        paths_to_delete.add(old_path)
+                continue
+
+            if "D" in xy and self._should_publish_path(path):
+                if not (self.repo_path / path).exists():
+                    paths_to_delete.add(path)
+                continue
+
+            if self._should_publish_path(path):
+                paths_to_add.add(path)
+                if path.endswith(".md"):
+                    self._add_parent_directories(path, paths_to_add)
+
+        failed = False
+        for relative_path in sorted(paths_to_add):
+            if not self._stage_add_path(relative_path):
+                failed = True
+        for relative_path in sorted(paths_to_delete):
+            if not self._stage_deletion(relative_path):
+                failed = True
+        return not failed
 
     def commit(self, message: str) -> bool:
         """Create a commit with the given message.

@@ -1,11 +1,14 @@
 """Log management functionality for Captain's Log."""
 
+import os
 import re
+import subprocess
 from datetime import date
 from pathlib import Path
 from typing import Optional
 
 from src.config.config_models import Config
+from src.git.git_operations import _GIT_ENV_VARS_TO_STRIP
 from src.logs.log_models import LogData, LogFileInfo
 from src.logs.log_parser import LogParser
 from src.logs.log_writer import LogWriter
@@ -236,7 +239,12 @@ class LogManager:
         return files_to_move
 
     def _move_log_file_to_year_month(
-        self, file_path: Path, file_year: int, file_month: int, base_dir: Path
+        self,
+        file_path: Path,
+        file_year: int,
+        file_month: int,
+        base_dir: Path,
+        log_repo_path: Optional[Path] = None,
     ) -> Optional[Path]:
         """Move a log file to its year/month subdirectory.
 
@@ -245,20 +253,70 @@ class LogManager:
             file_year: Year of the log file
             file_month: Month of the log file
             base_dir: Base directory for log files
+            log_repo_path: Git log repository root, when logs live in a repo
         """
         target_dir = base_dir / str(file_year) / f"{file_month:02d}"
         target_dir.mkdir(parents=True, exist_ok=True)
         target_path = target_dir / file_path.name
 
-        if not target_path.exists():
-            try:
-                file_path.rename(target_path)
-                return target_path
-            except (OSError, PermissionError) as e:
-                print(f"Warning: Could not move {file_path} to {target_path}: {e}")
-                return None
+        if target_path.exists():
+            return None
 
-        return None
+        if log_repo_path is not None and self._git_move_tracked(
+            file_path, target_path, log_repo_path.resolve()
+        ):
+            return target_path
+
+        try:
+            file_path.rename(target_path)
+            return target_path
+        except (OSError, PermissionError) as e:
+            print(f"Warning: Could not move {file_path} to {target_path}: {e}")
+            return None
+
+    def _git_move_tracked(self, source: Path, target: Path, repo_root: Path) -> bool:
+        """Move a tracked log file with ``git mv`` when it lives in repo_root."""
+        try:
+            rel_source = source.resolve().relative_to(repo_root)
+            rel_target = target.resolve().relative_to(repo_root)
+        except ValueError:
+            return False
+
+        env = {
+            key: value
+            for key, value in os.environ.items()
+            if key not in _GIT_ENV_VARS_TO_STRIP
+        }
+        tracked = subprocess.run(
+            [
+                "git",
+                "-C",
+                str(repo_root),
+                "ls-files",
+                "--error-unmatch",
+                str(rel_source),
+            ],
+            env=env,
+            capture_output=True,
+            text=True,
+        )
+        if tracked.returncode != 0:
+            return False
+
+        moved = subprocess.run(
+            [
+                "git",
+                "-C",
+                str(repo_root),
+                "mv",
+                str(rel_source),
+                str(rel_target),
+            ],
+            env=env,
+            capture_output=True,
+            text=True,
+        )
+        return moved.returncode == 0
 
     def _organize_old_log_files(
         self, project: ProjectInfo, log_repo_path: Optional[Path] = None
@@ -281,5 +339,5 @@ class LogManager:
         # Move all files
         for file_path, file_year, file_month in files_to_move:
             self._move_log_file_to_year_month(
-                file_path, file_year, file_month, base_dir
+                file_path, file_year, file_month, base_dir, log_repo_path
             )

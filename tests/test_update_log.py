@@ -426,37 +426,37 @@ def test_update_log_commit_uses_add_all(mock_run, tmp_path):
     project_dir = tmp_path / "test-project"
     project_dir.mkdir()
 
-    # Create project directory structure
-    base_dir = tmp_path / ".captains-log" / "projects" / "test-project"
-    base_dir.mkdir(parents=True)
+    # Create project directory structure in the log repository
+    log_project_dir = log_repo_path / "test-project"
+    log_project_dir.mkdir(parents=True)
 
     # Create current month log file
     from datetime import date
 
     today = date.today()
-    current_file = base_dir / f"{today.year}.{today.month:02d}.{today.day:02d}.md"
+    current_file = (
+        log_project_dir / f"{today.year}.{today.month:02d}.{today.day:02d}.md"
+    )
     current_file.write_text("# Current log\n## test-repo\n")
 
     # Mock git operations:
     # - pull (before reading the log)
     # - add .gitattributes (ensure_merge_driver, inside commit_and_push)
     # - status (for has_changes check)
-    # - status (for add_all to get changes)
+    # - status -z (for add_all to get changes)
     # - add .md file(s)
     # - commit
     # - push
-    file_name = current_file.name
-    mock_run.side_effect = [
-        MagicMock(),  # git pull --no-rebase
-        MagicMock(),  # git add .gitattributes
-        MagicMock(
-            stdout=f"M  {file_name}"
-        ),  # status - has changes (for has_changes check)
-        MagicMock(stdout=f"M  {file_name}"),  # status - for add_all to get changes
-        MagicMock(),  # add .md file
-        MagicMock(),  # commit
-        MagicMock(),  # push
-    ]
+    relative_name = f"test-project/{current_file.name}"
+
+    def git_side_effect(args, **kwargs):
+        if args[0] == "git" and "status" in args:
+            if "-z" in args:
+                return MagicMock(stdout=f"M  {relative_name}\0".encode())
+            return MagicMock(stdout=f"M  {relative_name}")
+        return MagicMock()
+
+    mock_run.side_effect = git_side_effect
 
     # Patch sys.argv and config loading
     from src.config.config_loader import set_config_path
@@ -484,7 +484,10 @@ def test_update_log_commit_uses_add_all(mock_run, tmp_path):
 
     # Verify add_all was called - it should add .md files individually (not add -A)
     add_calls = [
-        call for call in all_calls if "add" in call and call[-1].endswith(".md")
+        call
+        for call in all_calls
+        if "add" in call
+        and any(isinstance(arg, str) and arg.endswith(".md") for arg in call)
     ]
     assert len(add_calls) > 0, (
         f"add_all should have added .md files. Calls: {all_calls}"
