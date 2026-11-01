@@ -6,6 +6,21 @@ from unittest.mock import ANY, MagicMock, patch
 from src.git import CommitParser, GitOperations
 
 
+def porcelain_z(*entries: str) -> bytes:
+    """Build mock ``git status --porcelain -z`` bytes from ``XY path`` snippets."""
+    parts: list[str] = []
+    for entry in entries:
+        entry = entry.strip()
+        xy = entry[:2]
+        rest = entry[2:].lstrip()
+        if " -> " in rest:
+            old_path, _, new_path = rest.partition(" -> ")
+            parts.append(f"{xy} {new_path}\0{old_path}\0")
+        else:
+            parts.append(f"{xy} {rest}\0")
+    return "".join(parts).encode()
+
+
 # CommitParser tests
 def test_commit_parser_is_valid_commit_sha_valid():
     """Test valid commit SHAs."""
@@ -439,28 +454,30 @@ def test_git_operations_add_all_success(mock_run, tmp_path):
     """Test successful add_all operation with .md files."""
     repo_path = tmp_path / "repo"
     repo_path.mkdir()
+    (repo_path / "test.md").write_text("x")
+    (repo_path / "new.md").write_text("x")
     git_ops = GitOperations(repo_path)
 
     # Mock git status to return .md files
-    # Files are now batched together in a single git add call
     mock_run.side_effect = [
-        MagicMock(stdout="M  test.md\nA  new.md"),  # status
-        MagicMock(),  # batch add: test.md and new.md together
+        MagicMock(stdout=porcelain_z("M  test.md", "A  new.md")),  # status
+        MagicMock(),  # add test.md
+        MagicMock(),  # add new.md
     ]
     assert git_ops.add_all() is True
-    assert mock_run.call_count == 2
+    assert mock_run.call_count == 3
     # Verify status was called first
     mock_run.assert_any_call(
-        ["git", "-C", str(repo_path), "status", "--porcelain"],
+        ["git", "-C", str(repo_path), "status", "--porcelain", "-z"],
         env=ANY,
         check=True,
         capture_output=True,
-        text=True,
     )
-    # Verify .md files were added in batch
+    # Verify .md files were added individually
     add_calls = [call[0][0] for call in mock_run.call_args_list if "add" in call[0][0]]
-    assert len(add_calls) == 1, "Should batch add files together"
-    assert "test.md" in add_calls[0] and "new.md" in add_calls[0]
+    assert len(add_calls) == 2
+    assert any("test.md" in call for call in add_calls)
+    assert any("new.md" in call for call in add_calls)
 
 
 @patch("subprocess.run")
@@ -480,11 +497,12 @@ def test_git_operations_add_all_single_file_uses_individual_add(mock_run, tmp_pa
     """add_all with a single .md path uses the individual-add branch."""
     repo_path = tmp_path / "repo"
     repo_path.mkdir()
+    (repo_path / "test.md").write_text("x")
     git_ops = GitOperations(repo_path)
 
     # First call: status; second call: individual git add
     mock_run.side_effect = [
-        MagicMock(stdout="M  test.md"),
+        MagicMock(stdout=porcelain_z("M  test.md")),
         MagicMock(),  # git add test.md
     ]
 
@@ -514,8 +532,9 @@ def test_git_operations_commit_and_push_uses_add_all(mock_run, tmp_path):
     mock_run.side_effect = [
         MagicMock(),  # git add .gitattributes (ensure_merge_driver)
         MagicMock(stdout="M  test1.md\nM  test2.md"),  # status - has changes
-        MagicMock(stdout="M  test1.md\nM  test2.md"),  # status - for add_all
-        MagicMock(),  # batch add: test1.md and test2.md together
+        MagicMock(stdout=porcelain_z("M  test1.md", "M  test2.md")),  # add_all status
+        MagicMock(),  # add test1.md
+        MagicMock(),  # add test2.md
         MagicMock(),  # commit
         MagicMock(),  # push
     ]
@@ -524,15 +543,17 @@ def test_git_operations_commit_and_push_uses_add_all(mock_run, tmp_path):
     result = git_ops.commit_and_push("Test commit")
 
     assert result is True
-    assert mock_run.call_count == 6
+    assert mock_run.call_count == 7
 
-    # Verify add_all filtered to .md files and batched them together, on top
-    # of the one-time .gitattributes bootstrap add
     add_calls = [call[0][0] for call in mock_run.call_args_list if "add" in call[0][0]]
-    assert len(add_calls) == 2
-    md_add_calls = [c for c in add_calls if "test1.md" in c]
-    assert len(md_add_calls) == 1, "Should batch add both .md files together"
-    assert "test1.md" in md_add_calls[0] and "test2.md" in md_add_calls[0]
+    assert len(add_calls) == 3
+    md_paths = [
+        arg
+        for call in add_calls
+        for arg in call
+        if isinstance(arg, str) and arg.endswith(".md")
+    ]
+    assert "test1.md" in md_paths and "test2.md" in md_paths
 
 
 @patch("subprocess.run")
@@ -541,13 +562,14 @@ def test_git_operations_commit_and_push_add_all_failure(mock_run, tmp_path):
     repo_path = tmp_path / "repo"
     git_dir = repo_path / ".git"
     git_dir.mkdir(parents=True)
+    (repo_path / "test.md").write_text("x")
 
     # Mock git operations: gitattributes bootstrap, status succeeds (for
     # has_changes), status succeeds (for add_all), add fails
     mock_run.side_effect = [
         MagicMock(),  # git add .gitattributes (ensure_merge_driver)
         MagicMock(stdout="M  test.md"),  # status - has changes
-        MagicMock(stdout="M  test.md"),  # status - for add_all
+        MagicMock(stdout=porcelain_z("M  test.md")),  # add_all status
         subprocess.CalledProcessError(1, "git add"),  # add fails
     ]
 
@@ -642,25 +664,31 @@ def test_git_operations_add_all_filters_non_md_files(mock_run, tmp_path):
     """Test that add_all only adds .md files and filters out other files."""
     repo_path = tmp_path / "repo"
     repo_path.mkdir()
+    (repo_path / "test.md").write_text("x")
+    (repo_path / "readme.md").write_text("x")
     git_ops = GitOperations(repo_path)
-
-    # Mock git status with mixed file types
     mock_run.side_effect = [
         MagicMock(
-            stdout="M  test.md\nM  config.txt\nA  readme.md\n??  script.py"
-        ),  # status
-        MagicMock(),  # batch add: test.md and readme.md together
+            stdout=porcelain_z(
+                "M  test.md", "M  config.txt", "A  readme.md", "?? script.py"
+            )
+        ),
+        MagicMock(),  # add test.md
+        MagicMock(),  # add readme.md
     ]
     assert git_ops.add_all() is True
-    assert mock_run.call_count == 2
+    assert mock_run.call_count == 3
 
-    # Verify only .md files were added (batched together)
     add_calls = [call[0][0] for call in mock_run.call_args_list if "add" in call[0][0]]
-    assert len(add_calls) == 1, "Should batch add .md files together"
-    # Check that both .md files are in the batch add call
-    assert "test.md" in add_calls[0] and "readme.md" in add_calls[0]
-    # Verify non-.md files were NOT added
-    assert "config.txt" not in add_calls[0] and "script.py" not in add_calls[0]
+    assert len(add_calls) == 2
+    md_paths = [
+        arg
+        for call in add_calls
+        for arg in call
+        if isinstance(arg, str) and arg.endswith(".md")
+    ]
+    assert "test.md" in md_paths and "readme.md" in md_paths
+    assert "config.txt" not in md_paths and "script.py" not in md_paths
 
 
 @patch("subprocess.run")
@@ -677,17 +705,19 @@ def test_git_operations_add_all_includes_directories_with_md_files(mock_run, tmp
     # Mock git status showing new directory with .md file
     # The code will add the file and all parent directories (2024/01 and 2024) in a batch
     mock_run.side_effect = [
-        MagicMock(stdout="?? 2024/01/2024.01.15.md"),  # status
-        MagicMock(),  # batch add: 2024/01/2024.01.15.md, 2024/01, and 2024 together
+        MagicMock(stdout=porcelain_z("?? 2024/01/2024.01.15.md")),
+        MagicMock(),  # add file
+        MagicMock(),  # add 2024/01
+        MagicMock(),  # add 2024
     ]
     assert git_ops.add_all() is True
 
-    # Verify file and directories were added in batch
     add_calls = [call[0][0] for call in mock_run.call_args_list if "add" in call[0][0]]
-    assert len(add_calls) == 1, "Should batch add file and directories together"
-    assert "2024/01/2024.01.15.md" in add_calls[0]
-    assert "2024/01" in add_calls[0]
-    assert "2024" in add_calls[0]
+    assert len(add_calls) == 3
+    added_paths = [call[-1] for call in add_calls]
+    assert "2024/01/2024.01.15.md" in added_paths
+    assert "2024/01" in added_paths
+    assert "2024" in added_paths
 
 
 @patch("subprocess.run")
@@ -695,24 +725,22 @@ def test_git_operations_add_all_parses_porcelain_paths_correctly(mock_run, tmp_p
     """Test that add_all correctly parses status lines with leading space."""
     repo_path = tmp_path / "repo"
     repo_path.mkdir()
+    (repo_path / "captains-log").mkdir()
+    (repo_path / "captains-log" / "2026.03.09.md").write_text("x")
     git_ops = GitOperations(repo_path)
-
-    # Simulate typical porcelain output with leading space before path
     mock_run.side_effect = [
-        MagicMock(stdout=" M captains-log/2026.03.09.md\n"),  # status
-        MagicMock(),  # git add captains-log captains-log/2026.03.09.md (batch)
+        MagicMock(stdout=porcelain_z(" M captains-log/2026.03.09.md")),
+        MagicMock(),  # add file
+        MagicMock(),  # add captains-log
     ]
 
     assert git_ops.add_all() is True
-    assert mock_run.call_count == 2
+    assert mock_run.call_count == 3
 
-    # Second call should be the git add batch command
-    add_call_args = mock_run.call_args_list[1][0][0]
-    # Expect: ["git", "-C", repo_path, "add", "captains-log", "captains-log/2026.03.09.md"]
-    assert add_call_args[0:4] == ["git", "-C", str(repo_path), "add"]
-    # Ensure the full directory name is preserved (no missing leading 'c')
-    assert "captains-log" in add_call_args
-    assert "captains-log/2026.03.09.md" in add_call_args
+    add_calls = [call[0][0] for call in mock_run.call_args_list if "add" in call[0][0]]
+    added = [arg for call in add_calls for arg in call if isinstance(arg, str)]
+    assert "captains-log/2026.03.09.md" in added
+    assert "captains-log" in added
 
 
 @patch("subprocess.run")
@@ -720,20 +748,20 @@ def test_git_operations_add_all_handles_file_moves(mock_run, tmp_path):
     """Test that add_all handles file moves (renames) correctly."""
     repo_path = tmp_path / "repo"
     repo_path.mkdir()
+    (repo_path / "2024").mkdir()
+    (repo_path / "2024" / "01").mkdir(parents=True)
+    (repo_path / "2024" / "01" / "2024.01.15.md").write_text("x")
     git_ops = GitOperations(repo_path)
-
-    # Mock git status showing renamed file (R = renamed)
     # The code will add old path, new path, and parent directories in a batch
     mock_run.side_effect = [
-        MagicMock(stdout="R  2024.01.15.md -> 2024/01/2024.01.15.md"),  # status
-        MagicMock(),  # batch add: old path, new path, and directories together
+        MagicMock(stdout=porcelain_z("R  2024/01/2024.01.15.md -> 2024.01.15.md")),
+        MagicMock(),  # add destination
+        MagicMock(),  # add 2024/01
+        MagicMock(),  # add 2024
     ]
     assert git_ops.add_all() is True
 
-    # Verify both old and new paths were added, plus directories (batched)
     add_calls = [call[0][0] for call in mock_run.call_args_list if "add" in call[0][0]]
-    assert len(add_calls) == 1, "Should batch add all paths together"
-    assert "2024.01.15.md" in add_calls[0]
-    assert "2024/01/2024.01.15.md" in add_calls[0]
-    assert "2024/01" in add_calls[0]
-    assert "2024" in add_calls[0]
+    added = [arg for call in add_calls for arg in call if isinstance(arg, str)]
+    assert "2024/01/2024.01.15.md" in added
+    assert "2024.01.15.md" not in added

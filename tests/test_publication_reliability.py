@@ -420,3 +420,38 @@ def test_local_only_log_is_a_complete_save_without_pending_state(sandbox):
     assert not list((home / ".captains-log" / "pending").glob("*.json"))
     assert manual.returncode == 0
     assert "unpublished" not in manual.stdout
+
+
+def test_half_finished_month_grouping_publishes_backlog_and_clears_pending(sandbox):
+    from tests.test_month_grouping_staging import leave_half_finished_grouping
+
+    home, remote, logs, source = sandbox
+    leave_half_finished_grouping(logs, project=source.name)
+    pending_dir = home / ".captains-log" / "pending"
+    pending_dir.mkdir(parents=True, exist_ok=True)
+    (pending_dir / "backlog.json").write_text(
+        json.dumps(
+            {
+                "log_repo": str(logs.resolve()),
+                "saved_locally": True,
+                "repo": source.name,
+                "sha": git(source, "rev-parse", "HEAD"),
+            }
+        )
+        + "\n"
+    )
+    (logs / source.name / "2026.11.01.md").write_text(
+        "# What I did\n\n## other\n- queued backlog entry\n\n# Whats next\n\n\n"
+        "# What Broke or Got Weird\n"
+    )
+
+    result = update(source, "Fresh entry after grouping fix")
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    remote_log = git(remote, "show", f"main:{source.name}/2026.11.01.md")
+    assert "queued backlog entry" in remote_log
+    assert "Fresh entry after grouping fix" in git(
+        remote, "grep", "Fresh entry after grouping fix", "main"
+    )
+    assert not list(pending_dir.glob("*.json"))
+    assert not git(logs, "status", "--porcelain")
