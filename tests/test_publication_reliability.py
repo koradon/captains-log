@@ -12,6 +12,7 @@ import pytest
 
 from src import cli
 from src.git import GitOperations
+from tests.conftest import disable_git_hooks
 
 WORKSPACE = Path(__file__).resolve().parents[1]
 
@@ -20,8 +21,6 @@ WORKSPACE = Path(__file__).resolve().parents[1]
 def sandbox(tmp_path, monkeypatch):
     home = tmp_path / "home"
     home.mkdir()
-    hooks = tmp_path / "disabled-hooks"
-    hooks.mkdir()
     for key in list(os.environ):
         if key.startswith(("GIT_", "CAPTAINS_LOG_")):
             monkeypatch.delenv(key)
@@ -32,7 +31,7 @@ def sandbox(tmp_path, monkeypatch):
         "GIT_CONFIG_NOSYSTEM": "1",
         "GIT_CONFIG_COUNT": "1",
         "GIT_CONFIG_KEY_0": "core.hooksPath",
-        "GIT_CONFIG_VALUE_0": str(hooks),
+        "GIT_CONFIG_VALUE_0": "/dev/null",
         "GIT_AUTHOR_NAME": "Sandbox",
         "GIT_COMMITTER_NAME": "Sandbox",
         "GIT_AUTHOR_EMAIL": "sandbox@example.invalid",
@@ -41,11 +40,14 @@ def sandbox(tmp_path, monkeypatch):
         "PYTHONPATH": str(WORKSPACE),
     }.items():
         monkeypatch.setenv(key, value)
+    (home / ".gitconfig").write_text("[core]\n\thooksPath = /dev/null\n")
     remote, logs, source = (
         tmp_path / name for name in ("remote.git", "logs", "source")
     )
     git(tmp_path, "init", "--bare", "--initial-branch=main", str(remote))
+    disable_git_hooks(remote)
     git(tmp_path, "clone", str(remote), str(logs))
+    disable_git_hooks(logs)
     (logs / ".gitattributes").write_text("*.md merge=union\n")
     git(logs, "add", ".gitattributes")
     git(logs, "commit", "-m", "Seed logs")
