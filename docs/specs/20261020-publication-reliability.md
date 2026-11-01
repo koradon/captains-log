@@ -40,9 +40,13 @@ Background logging must distinguish those outcomes and retain inspectable pendin
   stdout and stderr), and an immediate second stat matches the original. Never remove
   symlinks or files changed during inspection. Missing tools, unsupported platforms,
   permission errors, and inspection timeouts leave the lock and produce a failure.
-- After recovery, keep the existing `add_all()` behavior so all pending local Markdown
-  files publish together. Retry push even if the worktree is clean: an earlier run may
-  already have committed its entry without publishing it.
+- After recovery, `add_all()` stages every pending local Markdown change for one commit
+  (still only `.md` paths and directories that contain them). It reads `git status
+  --porcelain -z` so renames and spaced paths are unambiguous, never passes a missing
+  rename source to `git add`, and stages deletions with `git add -u` / `git rm --cached`.
+  Month-boundary grouping uses `git mv` for tracked files in the log repository when
+  possible. Retry push even if the worktree is clean: an earlier run may already have
+  committed its entry without publishing it.
 - Capture source SHA and subject synchronously in `post-commit`, after the commit exists,
   then launch `update_log` in the background with output appended to
   `~/.captains-log/update-log.log`. Publication failures never veto or delay a user commit.
@@ -71,8 +75,9 @@ serialize concurrent writers or alter the existing multi-machine merge strategy.
 ## Acceptance scenarios (BDD)
 
 See [publication-reliability.feature](features/20261020-publication-reliability.feature).
-Executable regressions are in `tests/test_publication_reliability.py` and use temporary
-homes, clones, and local bare remotes; no test reads or modifies installed user state.
+Executable regressions are in `tests/test_publication_reliability.py` and
+`tests/test_month_grouping_staging.py`, using temporary homes, clones, and local bare
+remotes; no test reads or modifies installed user state.
 
 ## Related
 
