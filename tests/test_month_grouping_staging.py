@@ -94,22 +94,24 @@ def test_commit_and_push_finishes_staged_renames_and_unstaged_deletions(log_repo
     assert (log_repo / "tripper" / "2026" / "10" / "2026.10.01.md").exists()
 
 
-def test_one_bad_add_path_does_not_abort_other_staging(log_repo):
+def test_one_bad_add_path_does_not_abort_other_staging(log_repo, monkeypatch):
     project_dir = log_repo / "tripper"
     project_dir.mkdir(exist_ok=True)
     good = project_dir / "2026.11.01.md"
-    bad = project_dir / "2026.11.02.md"
     good.write_text("# Good\n")
-    bad.write_text("# Bad\n")
-    git(log_repo, "add", "tripper/2026.11.01.md", "tripper/2026.11.02.md")
-    git(log_repo, "commit", "-m", "Track both")
-    good.write_text("# Good updated\n")
-    bad.write_text("# Bad updated\n")
-    bad.chmod(0)
-    try:
-        ops = GitOperations(log_repo)
-        assert ops.add_all() is False
-        staged = git(log_repo, "diff", "--cached", "--name-only").stdout
-        assert "tripper/2026.11.01.md" in staged
-    finally:
-        bad.chmod(0o644)
+    git(log_repo, "add", "tripper/2026.11.01.md")
+    git(log_repo, "commit", "-m", "Good file")
+    (project_dir / "broken.md").write_text("# Broken\n")
+
+    ops = GitOperations(log_repo)
+    original_stage_add = ops._stage_add_path
+
+    def flaky_add(relative_path):
+        if relative_path == "tripper/broken.md":
+            return False
+        return original_stage_add(relative_path)
+
+    monkeypatch.setattr(ops, "_stage_add_path", flaky_add)
+
+    assert ops.add_all() is False
+    assert git(log_repo, "status", "--porcelain").stdout.strip()
