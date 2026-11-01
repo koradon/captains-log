@@ -50,5 +50,3 @@ def disable_git_hooks(repo: Path) -> None:
         timeout=20,
     )
 
-
-GIT_HOOKS_ISOLATION = ["-c", "core.hooksPath=/dev/null"]

@@ -5,12 +5,12 @@ import subprocess
 import pytest
 
 from src.git import GitOperations
-from tests.conftest import GIT_HOOKS_ISOLATION, disable_git_hooks
+from tests.conftest import disable_git_hooks
 
 
 def git(repo, *args):
     return subprocess.run(
-        ["git", *GIT_HOOKS_ISOLATION, "-C", str(repo), *args],
+        ["git", "-C", str(repo), *args],
         check=True,
         capture_output=True,
         text=True,
@@ -24,7 +24,6 @@ def init_log_repo(tmp_path):
     git(tmp_path, "init", "--bare", "--initial-branch=main", str(remote))
     git(tmp_path, "init", "--initial-branch=main", str(repo))
     disable_git_hooks(repo)
-    disable_git_hooks(remote)
     git(repo, "config", "user.email", "sandbox@example.invalid")
     git(repo, "config", "user.name", "Sandbox")
     (repo / ".gitattributes").write_text("*.md merge=union\n")

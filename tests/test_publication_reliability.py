@@ -45,7 +45,6 @@ def sandbox(tmp_path, monkeypatch):
         tmp_path / name for name in ("remote.git", "logs", "source")
     )
     git(tmp_path, "init", "--bare", "--initial-branch=main", str(remote))
-    disable_git_hooks(remote)
     git(tmp_path, "clone", str(remote), str(logs))
     disable_git_hooks(logs)
     (logs / ".gitattributes").write_text("*.md merge=union\n")
