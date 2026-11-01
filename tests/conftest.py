@@ -49,4 +49,3 @@ def disable_git_hooks(repo: Path) -> None:
         capture_output=True,
         timeout=20,
     )
-
